@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flemish Beer Tracker</title>
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    body { margin: 0; padding: 16px; background: #0b0c10; color: #eaf0ff; }
+    .wrap { max-width: 820px; margin: 0 auto; }
+    h1 { margin: 0 0 6px; font-size: 22px; }
+    .sub { margin: 0 0 16px; opacity: 0.8; font-size: 14px; }
+    .card { background: #141824; border: 1px solid #2a3147; border-radius: 14px; padding: 14px; margin: 12px 0; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .pill { padding: 8px 10px; border-radius: 999px; background: #1b2132; border: 1px solid #2a3147; font-size: 13px; }
+    button {
+      border: 1px solid #2a3147; background: #1b2132; color: #eaf0ff;
+      padding: 10px 12px; border-radius: 12px; font-size: 14px; cursor: pointer;
+    }
+    button:hover { filter: brightness(1.1); }
+    button.primary { background: #22305e; border-color: #3b5cff; }
+    button.danger { background: #3a1c22; border-color: #ff5a7a; }
+    button.good { background: #1d2f24; border-color: #2ee59d; }
+    .grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    @media (min-width: 720px) { .grid { grid-template-columns: 1fr 1fr; } }
+    .name { font-weight: 650; font-size: 16px; margin-bottom: 8px; }
+    .count { font-size: 28px; font-weight: 750; margin: 4px 0 10px; }
+    .muted { opacity: 0.75; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #2a3147; vertical-align: top; }
+    th { opacity: 0.8; font-weight: 650; }
+    .tag { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 12px; border: 1px solid #2a3147; background: #1b2132; }
+    .tag.ok { border-color: #2ee59d; background: #14221b; }
+    .tag.miss { border-color: #ff5a7a; background: #2a1419; }
+    input[type="text"]{
+      width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 12px;
+      border: 1px solid #2a3147; background: #0f1220; color: #eaf0ff; font-size: 14px;
+    }
+    .small { font-size: 12px; opacity: 0.8; }
+    .split { display:flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+    .split > div { flex: 1 1 280px; }
+    .roomBox { display:flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .roomBox input { flex: 1 1 260px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Flemish Beer Tracker</h1>
+  <p class="sub">Shared tracker. Both of you open the same link and use the same Room Code to sync.</p>
+
+  <div class="card">
+    <div class="split">
+      <div>
+        <div style="font-weight:650; margin-bottom:6px;">Room Code (shared)</div>
+        <div class="small">Example: <b>samuel-joel-2026</b>. You both must use the same one.</div>
+        <div class="roomBox">
+          <input id="roomInput" type="text" placeholder="Enter a Room Code" />
+          <button class="primary" onclick="connectRoom()">Connect</button>
+        </div>
+        <div class="muted" id="roomStatus">Not connected yet.</div>
+      </div>
+      <div>
+        <span class="pill" id="todayPill"></span>
+        <span class="pill">Rule: Missed day = +1 beer owed</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="name">Samuel</div>
+      <div class="count"><span id="samuelOwed">0</span> 🍺 owed</div>
+      <div class="row">
+        <button class="good" onclick="logFor('samuel','done')">✅ Done today</button>
+        <button class="danger" onclick="logFor('samuel','miss')">❌ Missed today</button>
+      </div>
+      <div class="muted" id="samuelStatus">Connect a room to start.</div>
+    </div>
+
+    <div class="card">
+      <div class="name">Joel</div>
+      <div class="count"><span id="joelOwed">0</span> 🍺 owed</div>
+      <div class="row">
+        <button class="good" onclick="logFor('joel','done')">✅ Done today</button>
+        <button class="danger" onclick="logFor('joel','miss')">❌ Missed today</button>
+      </div>
+      <div class="muted" id="joelStatus">Connect a room to start.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:650; margin-bottom:6px;">Optional note for today</div>
+    <input id="noteInput" type="text" placeholder="Add a note (optional)" />
+    <div class="row" style="margin-top:10px;">
+      <button class="primary" onclick="saveNote()">Save note</button>
+      <button onclick="undoToday()">Undo today</button>
+    </div>
+    <div class="muted" id="noteStatus"></div>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:650; margin-bottom:6px;">History</div>
+    <div class="small">Newest first.</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Samuel</th>
+          <th>Joel</th>
+          <th>Note</th>
+        </tr>
+      </thead>
+      <tbody id="historyBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Firebase SDKs (v9 compat for simplicity) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<script>
+  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyCCnKfM04RXZxP57j7MjhDjK-4wM8oAjFQ",
+  authDomain: "flemish-beer-tracker.firebaseapp.com",
+  projectId: "flemish-beer-tracker",
+  storageBucket: "flemish-beer-tracker.firebasestorage.app",
+  messagingSenderId: "578386909130",
+  appId: "1:578386909130:web:2baa14c9ad636a133fe133",
+  measurementId: "G-P742DCF7K9"
+};
+
+  // Basic UI helpers
+  function todayISO() {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  function prettyStatus(val) {
+    if (val === "done") return "Logged: done today.";
+    if (val === "miss") return "Logged: missed today. Beer added.";
+    return "No entry yet for today.";
+  }
+
+  // Firebase init
+  let app, auth, db;
+  let roomId = null;
+  let unsub = null;
+
+  function initFirebase() {
+    if (app) return;
+    app = firebase.initializeApp(firebaseConfig);
+    auth = firebase.auth();
+    db = firebase.firestore();
+  }
+
+  async function signInAnon() {
+    const user = auth.currentUser;
+    if (user) return;
+    await auth.signInAnonymously();
+  }
+
+  function render(state) {
+    const date = todayISO();
+    document.getElementById("todayPill").textContent = `Today: ${date}`;
+
+    const entries = (state && state.entries) ? state.entries : {};
+    const today = entries[date] || { samuel: null, joel: null, note: "" };
+
+    // Counts
+    const owedSamuel = Object.values(entries).filter(e => e && e.samuel === "miss").length;
+    const owedJoel = Object.values(entries).filter(e => e && e.joel === "miss").length;
+
+    document.getElementById("samuelOwed").textContent = owedSamuel;
+    document.getElementById("joelOwed").textContent = owedJoel;
+
+    document.getElementById("samuelStatus").textContent = prettyStatus(today.samuel);
+    document.getElementById("joelStatus").textContent = prettyStatus(today.joel);
+
+    const noteInput = document.getElementById("noteInput");
+    if ((noteInput.value || "").trim() !== (today.note || "")) noteInput.value = today.note || "";
+    document.getElementById("noteStatus").textContent = today.note ? `Saved note: "${today.note}"` : "No note saved for today.";
+
+    // History
+    const tbody = document.getElementById("historyBody");
+    tbody.innerHTML = "";
+    const dates = Object.keys(entries).sort((a,b) => (a < b ? 1 : -1));
+
+    if (dates.length === 0) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="4" class="muted">No entries yet.</td>`;
+      tbody.appendChild(tr);
+      return;
+    }
+
+    for (const d of dates) {
+      const e = entries[d] || {};
+      const s = e.samuel ? (e.samuel === "done" ? "Done" : "Missed") : "—";
+      const j = e.joel ? (e.joel === "done" ? "Done" : "Missed") : "—";
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${d}</td>
+        <td>${s}</td>
+        <td>${j}</td>
+        <td>${(e.note || "").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+  }
+
+  async function connectRoom() {
+    try {
+      initFirebase();
+      await signInAnon();
+
+      const input = document.getElementById("roomInput").value.trim();
+      if (!input) {
+        document.getElementById("roomStatus").textContent = "Please enter a Room Code.";
+        return;
+      }
+
+      roomId = input.toLowerCase();
+
+      // Stop previous listener
+      if (unsub) unsub();
+
+      const docRef = db.collection("rooms").doc(roomId);
+
+      // Ensure doc exists
+      await docRef.set({ updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+
+      // Listen live
+      unsub = docRef.onSnapshot((snap) => {
+        const data = snap.exists ? snap.data() : { entries: {} };
+        render(data);
+      });
+
+      document.getElementById("roomStatus").textContent = `Connected. Room Code: "${roomId}". Share this code with Joel.`;
+
+    } catch (err) {
+      document.getElementById("roomStatus").textContent = `Could not connect. ${err.message}`;
+    }
+  }
+
+  async function upsertToday(patch) {
+    if (!roomId) return;
+    const docRef = db.collection("rooms").doc(roomId);
+    const date = todayISO();
+    const key = `entries.${date}`;
+
+    await docRef.set({
+      [key]: patch,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  }
+
+  async function logFor(person, status) {
+    if (!roomId) return;
+
+    const docRef = db.collection("rooms").doc(roomId);
+    const snap = await docRef.get();
+    const data = snap.exists ? snap.data() : { entries: {} };
+    const date = todayISO();
+    const existing = (data.entries && data.entries[date]) ? data.entries[date] : { samuel: null, joel: null, note: "" };
+
+    existing[person] = status;
+    await upsertToday(existing);
+  }
+
+  async function saveNote() {
+    if (!roomId) return;
+
+    const docRef = db.collection("rooms").doc(roomId);
+    const snap = await docRef.get();
+    const data = snap.exists ? snap.data() : { entries: {} };
+    const date = todayISO();
+    const existing = (data.entries && data.entries[date]) ? data.entries[date] : { samuel: null, joel: null, note: "" };
+
+    existing.note = document.getElementById("noteInput").value.trim();
+    await upsertToday(existing);
+  }
+
+  async function undoToday() {
+    if (!roomId) return;
+
+    const docRef = db.collection("rooms").doc(roomId);
+    const snap = await docRef.get();
+    const data = snap.exists ? snap.data() : { entries: {} };
+    const date = todayISO();
+    const existing = (data.entries && data.entries[date]) ? data.entries[date] : { samuel: null, joel: null, note: "" };
+
+    existing.samuel = null;
+    existing.joel = null;
+    existing.note = "";
+    await upsertToday(existing);
+  }
+
+  // Initial render before connection
+  render({ entries: {} });
+  document.getElementById("todayPill").textContent = `Today: ${todayISO()}`;
+</script>
+</body>
+</html>
