@@ -1,127 +1,132 @@
 <!DOCTYPE html>
 <html>
 <head>
-
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 
 <title>Flemish Tracker</title>
 
-<link rel="manifest" href="manifest.json">
-
 <style>
 
 body{
-margin:0;
 font-family:-apple-system,BlinkMacSystemFont,Segoe UI;
-background:#f7f9fc;
-color:#1c1c1c;
+background:#f4f6f8;
+margin:0;
+color:#1f2933;
+}
+
+.wrap{
+max-width:1100px;
+margin:auto;
+padding:30px 20px;
 }
 
 h1{
-text-align:center;
-margin:24px 0 10px;
-font-weight:700;
-}
-
-.container{
-max-width:760px;
-margin:auto;
-padding:10px;
+margin-bottom:20px;
 }
 
 .card{
 background:white;
-border-radius:16px;
+border-radius:14px;
 padding:20px;
-margin:18px 0;
-box-shadow:0 8px 24px rgba(0,0,0,.06);
+margin-bottom:20px;
+box-shadow:0 2px 8px rgba(0,0,0,.06);
 }
 
-input{
-width:100%;
-padding:12px;
-border-radius:10px;
-border:1px solid #ddd;
-margin-top:6px;
+.row{
+display:flex;
+gap:20px;
+flex-wrap:wrap;
+}
+
+.player{
+flex:1;
+min-width:420px;
 }
 
 button{
-width:100%;
-padding:16px;
 border:none;
-border-radius:12px;
+padding:14px;
+border-radius:10px;
+font-weight:600;
+cursor:pointer;
+}
+
+.done{
 background:#4CAF50;
 color:white;
+width:100%;
 font-size:16px;
-font-weight:600;
-margin-top:14px;
-cursor:pointer;
-transition:.2s;
-}
-
-button:hover{
-transform:scale(1.02);
-}
-
-.stats{
-display:flex;
-justify-content:space-between;
-margin-top:14px;
-font-weight:600;
 }
 
 .calendar{
 display:grid;
 grid-template-columns:repeat(7,1fr);
 gap:6px;
-margin-top:16px;
+margin-top:10px;
 }
 
 .day{
-padding:12px 0;
-border-radius:8px;
-font-size:13px;
+padding:10px;
 text-align:center;
-background:#eef1f5;
-}
-
-.done{background:#66bb6a;color:white;}
-.missed{background:#ef5350;color:white;}
-.today{outline:3px solid orange;}
-.future{opacity:.35}
-
-.header{
-display:flex;
-justify-content:space-between;
-align-items:center;
-margin-bottom:8px;
-}
-
-.streak{
+border-radius:8px;
+background:#e5e7eb;
 font-size:14px;
-opacity:.7;
 }
+
+.doneDay{background:#86efac;}
+.missedDay{background:#fca5a5;}
+.today{
+outline:3px solid #f59e0b;
+}
+
+.score{
+font-size:20px;
+font-weight:700;
+text-align:center;
+}
+
+.hidden{display:none;}
 
 </style>
 </head>
 
 <body>
 
-<h1>🇧🇪 Flemish Tracker</h1>
+<div class="wrap">
 
-<div class="container">
+<h1>Flemish Tracker</h1>
 
-<div class="card">
-Room
-<input id="roomInput" value="samuel-joel">
+<div id="connectCard" class="card">
+<input id="roomInput" placeholder="Room code"/>
 <button onclick="connect()">Connect</button>
-<div id="status"></div>
 </div>
 
-<div id="samuel"></div>
-<div id="joel"></div>
+<div id="app" class="hidden">
 
+<div class="card score" id="debtDisplay"></div>
+
+<div class="row">
+
+<div class="card player">
+<h2>Samuel 🔵</h2>
+<button class="done" onclick="markDone('samuel')">
+✅ I DID FLEMISH TODAY
+</button>
+<div id="samuelCalendar" class="calendar"></div>
+</div>
+
+<div class="card player">
+<h2>Joel 🟠</h2>
+<button class="done" onclick="markDone('joel')">
+✅ I DID FLEMISH TODAY
+</button>
+<div id="joelCalendar" class="calendar"></div>
+</div>
+
+</div>
+
+</div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -130,150 +135,140 @@ Room
 
 <script>
 
-firebase.initializeApp({
+const firebaseConfig={
 apiKey:"AIzaSyCCnKfM04RXZxP57j7MjhDjK-4wM8oAjFQ",
 authDomain:"flemish-beer-tracker.firebaseapp.com",
 projectId:"flemish-beer-tracker"
-});
+};
+
+firebase.initializeApp(firebaseConfig);
 
 const db=firebase.firestore();
 const auth=firebase.auth();
 
-let room;
-let unsub;
+let room=null;
+let state={entries:{},settled:{}};
 
-const today=()=>new Date().toISOString().slice(0,10);
+function iso(d){
+return new Date(d).toISOString().slice(0,10);
+}
+
+function yesterday(){
+let d=new Date();
+d.setDate(d.getDate()-1);
+return iso(d);
+}
 
 async function connect(){
 
 await auth.signInAnonymously();
 
-room=document.getElementById("roomInput").value;
+room=document.getElementById("roomInput").value
+.toLowerCase().trim();
 
-const ref=db.collection("rooms").doc(room);
+db.collection("rooms").doc(room)
+.onSnapshot(async snap=>{
 
-await ref.set({init:true},{merge:true});
+state=snap.data()||{entries:{},settled:{}};
 
-if(unsub)unsub();
+await runSettlement();
 
-unsub=ref.onSnapshot(async snap=>{
-let data=snap.data()?.entries||{};
-await autoMiss(ref,data);
-render(data);
+render();
+
 });
 
-document.getElementById("status").innerText="Connected ✅";
+document.getElementById("connectCard").classList.add("hidden");
+document.getElementById("app").classList.remove("hidden");
 }
 
-async function autoMiss(ref,entries){
+async function markDone(person){
 
-const y=new Date();
-y.setDate(y.getDate()-1);
-const yd=y.toISOString().slice(0,10);
+let today=iso(new Date());
 
-if(entries[yd]) return;
+let entry=state.entries[today]||{};
+entry[person]=true;
 
-await ref.set({
+await db.collection("rooms")
+.doc(room)
+.set({
 entries:{
-[yd]:{
-samuel:false,
-joel:false
-}
+[today]:entry
 }
 },{merge:true});
 }
 
-async function done(person){
+async function runSettlement(){
 
-const ref=db.collection("rooms").doc(room);
-await ref.set({
-entries:{
-[today()]:{
-[person]:true
-}
-}
+let y=yesterday();
+
+if(state.settled?.[y]) return;
+
+let e=state.entries?.[y];
+if(!e) return;
+
+let sam=e.samuel===true;
+let joe=e.joel===true;
+
+let debt=state.debt||{samuel:0,joel:0};
+
+if(sam && !joe) debt.joel++;
+if(joe && !sam) debt.samuel++;
+
+await db.collection("rooms").doc(room).set({
+debt,
+settled:{[y]:true}
 },{merge:true});
 }
 
-function streak(entries,p){
+function render(){
 
-let days=0;
-let d=new Date();
+renderPlayer("samuel");
+renderPlayer("joel");
 
-while(true){
-let k=d.toISOString().slice(0,10);
-if(entries[k]?.[p]) days++;
-else break;
-d.setDate(d.getDate()-1);
+let d=state.debt||{samuel:0,joel:0};
+
+let text="All square ✅";
+
+if(d.samuel>d.joel)
+text=`Samuel owes Joel ${d.samuel-d.joel} 🍺`;
+
+if(d.joel>d.samuel)
+text=`Joel owes Samuel ${d.joel-d.samuel} 🍺`;
+
+document.getElementById("debtDisplay").innerText=text;
 }
 
-return days;
+function renderPlayer(name){
+
+let el=document.getElementById(name+"Calendar");
+el.innerHTML="";
+
+let now=new Date();
+let year=now.getFullYear();
+let month=now.getMonth();
+
+let days=new Date(year,month+1,0).getDate();
+
+for(let i=1;i<=days;i++){
+
+let d=new Date(year,month,i);
+let key=iso(d);
+
+let div=document.createElement("div");
+div.className="day";
+div.innerText=i;
+
+let entry=state.entries?.[key];
+
+if(entry?.[name]) div.classList.add("doneDay");
+else if(key<iso(new Date()))
+div.classList.add("missedDay");
+
+if(key===iso(new Date()))
+div.classList.add("today");
+
+el.appendChild(div);
 }
-
-function beers(entries,p){
-return Object.values(entries)
-.filter(e=>e[p]===false).length;
-}
-
-function calendar(entries,p){
-
-const now=new Date();
-const y=now.getFullYear();
-const m=now.getMonth();
-const last=new Date(y,m+1,0).getDate();
-
-let html='<div class="calendar">';
-
-for(let i=1;i<=last;i++){
-
-let d=new Date(y,m,i).toISOString().slice(0,10);
-let c="day";
-
-if(d>today())c+=" future";
-else if(entries[d]?.[p]===true)c+=" done";
-else if(entries[d]?.[p]===false)c+=" missed";
-
-if(d===today())c+=" today";
-
-html+=`<div class="${c}">${i}</div>`;
-}
-
-html+="</div>";
-
-return html;
-}
-
-function panel(id,name,entries){
-
-return `
-<div class="card">
-
-<div class="header">
-<h2>${name}</h2>
-<div class="streak">🔥 ${streak(entries,id)} day streak</div>
-</div>
-
-<button onclick="done('${id}')">
-✅ I DID FLEMISH TODAY
-</button>
-
-<div class="stats">
-<div>🍺 Beers owed: ${beers(entries,id)}</div>
-</div>
-
-${calendar(entries,id)}
-
-</div>`;
-}
-
-function render(entries){
-
-document.getElementById("samuel")
-.innerHTML=panel("samuel","Samuel",entries);
-
-document.getElementById("joel")
-.innerHTML=panel("joel","Joel",entries);
-
 }
 
 </script>
