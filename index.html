@@ -1,277 +1,1395 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Flemish Tracker</title>
 
-<title>Flemish Tracker</title>
+  <style>
+    :root{
+      --bg:#f7f8fb;
+      --card:#ffffff;
+      --text:#0f172a;
+      --muted:#64748b;
+      --border:#e6eaf2;
+      --shadow:0 8px 24px rgba(15,23,42,.06);
+      --shadow-soft:0 2px 10px rgba(15,23,42,.06);
 
-<style>
+      --good:#16a34a;
+      --good-bg:#dcfce7;
 
-body{
-font-family:-apple-system,BlinkMacSystemFont,Segoe UI;
-background:#f4f6f8;
-margin:0;
-color:#1f2933;
-}
+      --bad:#dc2626;
+      --bad-bg:#fee2e2;
 
-.wrap{
-max-width:1100px;
-margin:auto;
-padding:30px 20px;
-}
+      --accent:#2563eb;
+      --accent-bg:#dbeafe;
 
-h1{
-margin-bottom:20px;
-}
+      --warn:#f59e0b;
+      --warn-bg:#fef3c7;
 
-.card{
-background:white;
-border-radius:14px;
-padding:20px;
-margin-bottom:20px;
-box-shadow:0 2px 8px rgba(0,0,0,.06);
-}
+      --radius:16px;
+      --radius-sm:12px;
+    }
 
-.row{
-display:flex;
-gap:20px;
-flex-wrap:wrap;
-}
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial;
+      color:var(--text);
+      background: radial-gradient(1200px 600px at 20% 0%, #eef2ff 0%, rgba(238,242,255,0) 55%),
+                  radial-gradient(1200px 600px at 90% 10%, #ecfeff 0%, rgba(236,254,255,0) 55%),
+                  var(--bg);
+    }
 
-.player{
-flex:1;
-min-width:420px;
-}
+    .wrap{
+      max-width:1180px;
+      margin:0 auto;
+      padding:28px 18px 40px;
+    }
 
-button{
-border:none;
-padding:14px;
-border-radius:10px;
-font-weight:600;
-cursor:pointer;
-}
+    .top{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-end;
+      gap:16px;
+      margin-bottom:16px;
+    }
 
-.done{
-background:#4CAF50;
-color:white;
-width:100%;
-font-size:16px;
-}
+    .brand h1{
+      margin:0;
+      font-size:22px;
+      letter-spacing:-0.02em;
+    }
+    .brand p{
+      margin:6px 0 0;
+      color:var(--muted);
+      font-size:13px;
+    }
 
-.calendar{
-display:grid;
-grid-template-columns:repeat(7,1fr);
-gap:6px;
-margin-top:10px;
-}
+    .room{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      background:rgba(255,255,255,.7);
+      border:1px solid var(--border);
+      border-radius:999px;
+      padding:10px 12px;
+      box-shadow:var(--shadow-soft);
+    }
+    .room input{
+      border:none;
+      outline:none;
+      background:transparent;
+      font-size:14px;
+      width:220px;
+      color:var(--text);
+    }
 
-.day{
-padding:10px;
-text-align:center;
-border-radius:8px;
-background:#e5e7eb;
-font-size:14px;
-}
+    .btn{
+      border:none;
+      cursor:pointer;
+      font-weight:650;
+      padding:10px 12px;
+      border-radius:12px;
+      transition:transform .06s ease, box-shadow .2s ease, opacity .2s ease;
+      box-shadow:0 1px 0 rgba(15,23,42,.06);
+      user-select:none;
+      white-space:nowrap;
+    }
+    .btn:active{transform:translateY(1px)}
+    .btn-primary{
+      background:var(--accent);
+      color:white;
+    }
+    .btn-ghost{
+      background:transparent;
+      color:var(--text);
+      border:1px solid var(--border);
+    }
+    .btn-success{
+      background:linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
+      color:white;
+      width:100%;
+      padding:12px 14px;
+      border-radius:14px;
+      font-size:14px;
+      letter-spacing:-0.01em;
+      box-shadow:0 10px 26px rgba(34,197,94,.18);
+    }
+    .btn-success[disabled]{
+      opacity:.55;
+      cursor:not-allowed;
+      box-shadow:none;
+    }
 
-.doneDay{background:#86efac;}
-.missedDay{background:#fca5a5;}
-.today{
-outline:3px solid #f59e0b;
-}
+    .panel{
+      background:rgba(255,255,255,.78);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:16px;
+    }
 
-.score{
-font-size:20px;
-font-weight:700;
-text-align:center;
-}
+    .monthbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:12px;
+    }
+    .monthbar .left{
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .monthTitle{
+      font-weight:750;
+      letter-spacing:-0.02em;
+    }
+    .chip{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 10px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.8);
+      color:var(--muted);
+      font-size:12px;
+    }
 
-.hidden{display:none;}
+    .main{
+      display:grid;
+      grid-template-columns:1fr 20px 1fr;
+      gap:16px;
+      align-items:start;
+    }
+    .divider{
+      height:100%;
+      border-radius:999px;
+      background:linear-gradient(180deg, rgba(37,99,235,.16) 0%, rgba(34,197,94,.14) 50%, rgba(220,38,38,.14) 100%);
+      border:1px solid rgba(15,23,42,.06);
+    }
 
-</style>
+    .playerCard{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:16px;
+    }
+
+    .playerTop{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      margin-bottom:10px;
+    }
+
+    .identity{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width:0;
+    }
+
+    .avatar{
+      width:36px;
+      height:36px;
+      border-radius:12px;
+      display:grid;
+      place-items:center;
+      font-weight:800;
+      color:var(--text);
+      border:1px solid rgba(15,23,42,.08);
+      background:linear-gradient(180deg, rgba(37,99,235,.12) 0%, rgba(37,99,235,.06) 100%);
+    }
+    .avatar.orange{
+      background:linear-gradient(180deg, rgba(245,158,11,.18) 0%, rgba(245,158,11,.06) 100%);
+    }
+
+    .nameWrap{
+      min-width:0;
+    }
+    .nameWrap .name{
+      font-size:16px;
+      font-weight:800;
+      letter-spacing:-0.02em;
+      margin:0;
+    }
+    .nameWrap .sub{
+      margin:2px 0 0;
+      font-size:12px;
+      color:var(--muted);
+    }
+
+    .kpis{
+      display:grid;
+      grid-template-columns:1fr 1fr 1.35fr;
+      gap:10px;
+      margin:12px 0 12px;
+    }
+    .kpi{
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:10px;
+      background:linear-gradient(180deg, rgba(248,250,252,.95) 0%, rgba(255,255,255,1) 100%);
+    }
+    .kpi .label{
+      color:var(--muted);
+      font-size:12px;
+      margin:0 0 6px;
+    }
+    .kpi .value{
+      font-weight:900;
+      font-size:16px;
+      letter-spacing:-0.02em;
+      margin:0;
+      display:flex;
+      align-items:baseline;
+      gap:8px;
+    }
+    .kpi .hint{
+      margin:6px 0 0;
+      color:var(--muted);
+      font-size:12px;
+    }
+    .owedBadge{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.85);
+      font-size:12px;
+      color:var(--muted);
+    }
+    .owedBadge strong{color:var(--text)}
+
+    .calendar{
+      margin-top:10px;
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:12px;
+      background:rgba(248,250,252,.9);
+    }
+
+    .dow{
+      display:grid;
+      grid-template-columns:repeat(7, 1fr);
+      gap:6px;
+      margin-bottom:8px;
+    }
+    .dow div{
+      text-align:center;
+      font-size:11px;
+      color:var(--muted);
+      font-weight:700;
+      padding:6px 0;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns:repeat(7, 1fr);
+      gap:6px;
+    }
+
+    .day{
+      position:relative;
+      height:40px;
+      border-radius:12px;
+      border:1px solid rgba(15,23,42,.08);
+      background:rgba(255,255,255,.95);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:13px;
+      font-weight:750;
+      color:var(--text);
+      user-select:none;
+      cursor:default;
+    }
+    .day.muted{
+      opacity:.35;
+      background:transparent;
+      border:1px dashed rgba(15,23,42,.10);
+    }
+    .day.studied{
+      background:var(--good-bg);
+      border-color:rgba(22,163,74,.25);
+      color:rgba(20,83,45,1);
+    }
+    .day.missed{
+      background:var(--bad-bg);
+      border-color:rgba(220,38,38,.25);
+      color:rgba(127,29,29,1);
+    }
+    .day.today{
+      outline:3px solid rgba(245,158,11,.65);
+      outline-offset:2px;
+    }
+
+    .day .dot{
+      position:absolute;
+      bottom:6px;
+      width:7px;
+      height:7px;
+      border-radius:50%;
+      background:rgba(100,116,139,.35);
+    }
+    .day.studied .dot{ background:rgba(22,163,74,.7); }
+    .day.missed .dot{ background:rgba(220,38,38,.7); }
+
+    .actions{
+      margin-top:12px;
+      display:flex;
+      gap:10px;
+    }
+    .actions .btn{
+      flex:1;
+      padding:10px 12px;
+      border-radius:14px;
+    }
+
+    .lower{
+      margin-top:16px;
+      display:grid;
+      grid-template-columns:1.2fr .8fr;
+      gap:16px;
+    }
+
+    .activity{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:16px;
+      overflow:hidden;
+    }
+    .activityHead{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:10px;
+      gap:10px;
+    }
+    .activityHead h3{
+      margin:0;
+      font-size:14px;
+      font-weight:900;
+      letter-spacing:-0.02em;
+    }
+
+    .feed{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      max-height:320px;
+      overflow:auto;
+      padding-right:6px;
+    }
+    .item{
+      display:flex;
+      gap:10px;
+      padding:10px;
+      border:1px solid var(--border);
+      border-radius:14px;
+      background:linear-gradient(180deg, rgba(248,250,252,.9) 0%, rgba(255,255,255,1) 100%);
+    }
+    .icon{
+      width:34px;
+      height:34px;
+      border-radius:12px;
+      display:grid;
+      place-items:center;
+      border:1px solid rgba(15,23,42,.08);
+      background:rgba(255,255,255,.9);
+      flex:0 0 auto;
+    }
+    .item .text{
+      min-width:0;
+    }
+    .item .text .line1{
+      margin:0;
+      font-weight:800;
+      font-size:13px;
+      letter-spacing:-0.01em;
+      color:var(--text);
+    }
+    .item .text .line2{
+      margin:4px 0 0;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.25;
+    }
+
+    .summaryCard{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:16px;
+    }
+    .summaryCard h3{
+      margin:0 0 10px;
+      font-size:14px;
+      font-weight:900;
+      letter-spacing:-0.02em;
+    }
+    .bigDebt{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .bigDebt .rowDebt{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:12px;
+      background:rgba(248,250,252,.9);
+    }
+    .bigDebt .rowDebt .lhs{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      min-width:0;
+    }
+    .bigDebt .rowDebt .lhs .who{
+      font-weight:900;
+      letter-spacing:-0.02em;
+    }
+    .bigDebt .rowDebt .lhs .small{
+      color:var(--muted);
+      font-size:12px;
+    }
+    .bigDebt .rowDebt .rhs{
+      font-weight:950;
+      font-size:18px;
+      letter-spacing:-0.02em;
+    }
+
+    .hidden{display:none;}
+
+    /* Modal */
+    .backdrop{
+      position:fixed;
+      inset:0;
+      background:rgba(15,23,42,.42);
+      display:flex;
+      align-items:flex-end;
+      justify-content:center;
+      padding:16px;
+      z-index:50;
+    }
+    .modal{
+      width:min(720px, 100%);
+      background:var(--card);
+      border-radius:18px;
+      border:1px solid rgba(255,255,255,.2);
+      box-shadow:0 24px 60px rgba(15,23,42,.28);
+      overflow:hidden;
+    }
+    .modalHead{
+      padding:14px 16px;
+      border-bottom:1px solid var(--border);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .modalHead h3{
+      margin:0;
+      font-size:14px;
+      font-weight:950;
+      letter-spacing:-0.02em;
+    }
+    .modalBody{
+      padding:16px;
+      display:grid;
+      gap:12px;
+    }
+    .field{
+      display:grid;
+      gap:6px;
+    }
+    .field label{
+      font-size:12px;
+      color:var(--muted);
+      font-weight:700;
+    }
+    .field input, .field select{
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:12px;
+      font-size:14px;
+      outline:none;
+      background:#fff;
+      color:var(--text);
+    }
+    .modalActions{
+      padding:14px 16px;
+      border-top:1px solid var(--border);
+      display:flex;
+      gap:10px;
+      justify-content:flex-end;
+    }
+    .pillNote{
+      font-size:12px;
+      color:var(--muted);
+      background:rgba(37,99,235,.06);
+      border:1px solid rgba(37,99,235,.14);
+      padding:10px 12px;
+      border-radius:14px;
+      line-height:1.25;
+    }
+
+    @media (max-width: 980px){
+      .main{ grid-template-columns:1fr; }
+      .divider{ display:none; }
+      .lower{ grid-template-columns:1fr; }
+      .room input{ width:160px; }
+    }
+  </style>
 </head>
 
 <body>
+  <div class="wrap">
 
-<div class="wrap">
+    <div class="top">
+      <div class="brand">
+        <h1>Flemish Tracker</h1>
+        <p>Study daily. Miss a day, owe a beer. Settle it at the pub.</p>
+      </div>
 
-<h1>Flemish Tracker</h1>
+      <div id="connectCard" class="room">
+        <input id="roomInput" placeholder="Room code (e.g. samuel-joel)" autocomplete="off" />
+        <button class="btn btn-primary" onclick="connect()">Connect</button>
+      </div>
 
-<div id="connectCard" class="card">
-<input id="roomInput" placeholder="Room code"/>
-<button onclick="connect()">Connect</button>
-</div>
+      <div id="connectedPill" class="room hidden">
+        <span class="chip">Connected</span>
+        <span id="roomName" class="chip"></span>
+        <button class="btn btn-ghost" onclick="disconnect()">Change room</button>
+      </div>
+    </div>
 
-<div id="app" class="hidden">
+    <div id="app" class="panel hidden">
 
-<div class="card score" id="debtDisplay"></div>
+      <div class="monthbar">
+        <div class="left">
+          <button class="btn btn-ghost" onclick="shiftMonth(-1)">◀</button>
+          <div class="monthTitle" id="monthTitle"></div>
+          <button class="btn btn-ghost" onclick="shiftMonth(1)">▶</button>
+          <span class="chip" id="todayChip"></span>
+        </div>
+        <div class="right">
+          <span class="chip">Tap “Studied Today” once per day</span>
+        </div>
+      </div>
 
-<div class="row">
+      <div class="main">
+        <div class="playerCard" id="samuelCard">
+          <div class="playerTop">
+            <div class="identity">
+              <div class="avatar">S</div>
+              <div class="nameWrap">
+                <p class="name">Samuel</p>
+                <p class="sub" id="samuelSub">Tracking this month</p>
+              </div>
+            </div>
+          </div>
 
-<div class="card player">
-<h2>Samuel 🔵</h2>
-<button class="done" onclick="markDone('samuel')">
-✅ I DID FLEMISH TODAY
-</button>
-<div id="samuelCalendar" class="calendar"></div>
-</div>
+          <button class="btn btn-success" id="samuelDoneBtn" onclick="markStudied('samuel')">✅ Studied Today</button>
 
-<div class="card player">
-<h2>Joel 🟠</h2>
-<button class="done" onclick="markDone('joel')">
-✅ I DID FLEMISH TODAY
-</button>
-<div id="joelCalendar" class="calendar"></div>
-</div>
+          <div class="kpis">
+            <div class="kpi">
+              <p class="label">Streak</p>
+              <p class="value" id="samuelStreak">0</p>
+              <p class="hint">Current</p>
+            </div>
+            <div class="kpi">
+              <p class="label">This month</p>
+              <p class="value" id="samuelMonthCount">0</p>
+              <p class="hint">Days studied</p>
+            </div>
+            <div class="kpi">
+              <p class="label">Beers owed</p>
+              <p class="value">
+                <span id="samuelOwesCount">0</span>
+                <span class="owedBadge"><strong id="samuelOwesLabel">Samuel owes Joel</strong> 🍺</span>
+              </p>
+              <p class="hint">Owed by Samuel</p>
+            </div>
+          </div>
 
-</div>
+          <div class="calendar">
+            <div class="dow">
+              <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
+            </div>
+            <div class="grid" id="samuelCalendar"></div>
+          </div>
 
-</div>
-</div>
+          <div class="actions">
+            <button class="btn btn-ghost" onclick="openBeerModal('samuel')">🍺 Log Beer Bought</button>
+            <button class="btn btn-ghost" onclick="quickExplain('samuel')">ℹ️</button>
+          </div>
+        </div>
 
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+        <div class="divider"></div>
 
-<script>
+        <div class="playerCard" id="joelCard">
+          <div class="playerTop">
+            <div class="identity">
+              <div class="avatar orange">J</div>
+              <div class="nameWrap">
+                <p class="name">Joel</p>
+                <p class="sub" id="joelSub">Tracking this month</p>
+              </div>
+            </div>
+          </div>
 
-const firebaseConfig={
-apiKey:"AIzaSyCCnKfM04RXZxP57j7MjhDjK-4wM8oAjFQ",
-authDomain:"flemish-beer-tracker.firebaseapp.com",
-projectId:"flemish-beer-tracker"
-};
+          <button class="btn btn-success" id="joelDoneBtn" onclick="markStudied('joel')">✅ Studied Today</button>
 
-firebase.initializeApp(firebaseConfig);
+          <div class="kpis">
+            <div class="kpi">
+              <p class="label">Streak</p>
+              <p class="value" id="joelStreak">0</p>
+              <p class="hint">Current</p>
+            </div>
+            <div class="kpi">
+              <p class="label">This month</p>
+              <p class="value" id="joelMonthCount">0</p>
+              <p class="hint">Days studied</p>
+            </div>
+            <div class="kpi">
+              <p class="label">Beers owed</p>
+              <p class="value">
+                <span id="joelOwesCount">0</span>
+                <span class="owedBadge"><strong id="joelOwesLabel">Joel owes Samuel</strong> 🍺</span>
+              </p>
+              <p class="hint">Owed by Joel</p>
+            </div>
+          </div>
 
-const db=firebase.firestore();
-const auth=firebase.auth();
+          <div class="calendar">
+            <div class="dow">
+              <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
+            </div>
+            <div class="grid" id="joelCalendar"></div>
+          </div>
 
-let room=null;
-let state={entries:{},settled:{}};
+          <div class="actions">
+            <button class="btn btn-ghost" onclick="openBeerModal('joel')">🍺 Log Beer Bought</button>
+            <button class="btn btn-ghost" onclick="quickExplain('joel')">ℹ️</button>
+          </div>
+        </div>
+      </div>
 
-function iso(d){
-return new Date(d).toISOString().slice(0,10);
-}
+      <div class="lower">
+        <div class="activity">
+          <div class="activityHead">
+            <h3>Recent activity</h3>
+            <span class="chip" id="activityHint">Latest 10</span>
+          </div>
+          <div class="feed" id="activityFeed"></div>
+        </div>
 
-function yesterday(){
-let d=new Date();
-d.setDate(d.getDate()-1);
-return iso(d);
-}
+        <div class="summaryCard">
+          <h3>Scoreboard</h3>
+          <div class="bigDebt">
+            <div class="rowDebt">
+              <div class="lhs">
+                <div class="who">Samuel owes Joel</div>
+                <div class="small">Outstanding beers</div>
+              </div>
+              <div class="rhs" id="scoreSamuel">0 🍺</div>
+            </div>
+            <div class="rowDebt">
+              <div class="lhs">
+                <div class="who">Joel owes Samuel</div>
+                <div class="small">Outstanding beers</div>
+              </div>
+              <div class="rhs" id="scoreJoel">0 🍺</div>
+            </div>
+            <div class="pillNote" id="netNote">All square ✅</div>
+          </div>
+        </div>
+      </div>
 
-async function connect(){
+    </div>
+  </div>
 
-await auth.signInAnonymously();
+  <!-- Beer modal -->
+  <div id="beerBackdrop" class="backdrop hidden" onclick="closeBeerModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modalHead">
+        <h3 id="beerModalTitle">Log Beer Bought</h3>
+        <button class="btn btn-ghost" onclick="closeBeerModal()">Close</button>
+      </div>
+      <div class="modalBody">
+        <div class="pillNote" id="beerModalNote">This settles one owed beer, if any is outstanding.</div>
 
-room=document.getElementById("roomInput").value
-.toLowerCase().trim();
+        <div class="field">
+          <label for="beerFor">Bought for</label>
+          <select id="beerFor"></select>
+        </div>
 
-db.collection("rooms").doc(room)
-.onSnapshot(async snap=>{
+        <div class="field">
+          <label for="pubInput">Pub</label>
+          <input id="pubInput" list="pubList" placeholder="Start typing or add a new pub" autocomplete="off" />
+          <datalist id="pubList"></datalist>
+        </div>
 
-state=snap.data()||{entries:{},settled:{}};
+        <div class="field">
+          <label for="beerNote">Optional note</label>
+          <input id="beerNote" placeholder="e.g. Guinness, Friday night" autocomplete="off" />
+        </div>
+      </div>
+      <div class="modalActions">
+        <button class="btn btn-ghost" onclick="closeBeerModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveBeer()">Confirm</button>
+      </div>
+    </div>
+  </div>
 
-await runSettlement();
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
-render();
+  <script>
+    // -----------------------------
+    // Firebase
+    // -----------------------------
+    const firebaseConfig = {
+      apiKey: "AIzaSyCCnKfM04RXZxP57j7MjhDjK-4wM8oAjFQ",
+      authDomain: "flemish-beer-tracker.firebaseapp.com",
+      projectId: "flemish-beer-tracker"
+    };
 
-});
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const auth = firebase.auth();
 
-document.getElementById("connectCard").classList.add("hidden");
-document.getElementById("app").classList.remove("hidden");
-}
+    // -----------------------------
+    // State
+    // -----------------------------
+    let room = null;
+    let unsub = null;
 
-async function markDone(person){
+    // Firestore doc shape (single room doc):
+    // {
+    //   days: { "YYYY-MM-DD": { samuel: "studied"|"missed", joel: "studied"|"missed" } },
+    //   debt: { samuel: number, joel: number }, // beers owed BY that person
+    //   missedProcessed: { "YYYY-MM-DD": true }, // day-level idempotence
+    //   pubs: { "pubId": { name, lastUsedAt } },
+    //   activity: [ { t, type, msg, meta } ] // newest first
+    // }
+    let state = null;
 
-let today=iso(new Date());
+    // Local-only UI month navigation
+    let viewYear = new Date().getFullYear();
+    let viewMonth = new Date().getMonth(); // 0-11
 
-let entry=state.entries[today]||{};
-entry[person]=true;
+    // Local-only beer modal context
+    let beerFrom = null; // who is paying (the one whose button opened)
+    let beerTo = null;   // who it's for (defaults to the other)
 
-await db.collection("rooms")
-.doc(room)
-.set({
-entries:{
-[today]:entry
-}
-},{merge:true});
-}
+    // -----------------------------
+    // Helpers
+    // -----------------------------
+    function pad(n){ return String(n).padStart(2,"0"); }
 
-async function runSettlement(){
+    function isoDate(d){
+      const x = new Date(d);
+      return x.getFullYear() + "-" + pad(x.getMonth()+1) + "-" + pad(x.getDate());
+    }
 
-let y=yesterday();
+    function todayIso(){
+      return isoDate(new Date());
+    }
 
-if(state.settled?.[y]) return;
+    function startOfMonth(y,m){
+      return new Date(y, m, 1);
+    }
 
-let e=state.entries?.[y];
-if(!e) return;
+    function endOfMonth(y,m){
+      return new Date(y, m+1, 0);
+    }
 
-let sam=e.samuel===true;
-let joe=e.joel===true;
+    function daysInMonth(y,m){
+      return new Date(y, m+1, 0).getDate();
+    }
 
-let debt=state.debt||{samuel:0,joel:0};
+    function isPast(dateIso){
+      return dateIso < todayIso();
+    }
 
-if(sam && !joe) debt.joel++;
-if(joe && !sam) debt.samuel++;
+    function other(person){
+      return person === "samuel" ? "joel" : "samuel";
+    }
 
-await db.collection("rooms").doc(room).set({
-debt,
-settled:{[y]:true}
-},{merge:true});
-}
+    function displayName(person){
+      return person === "samuel" ? "Samuel" : "Joel";
+    }
 
-function render(){
+    function formatMonthTitle(y,m){
+      const d = new Date(y, m, 1);
+      return d.toLocaleString(undefined, { month:"long", year:"numeric" });
+    }
 
-renderPlayer("samuel");
-renderPlayer("joel");
+    function formatTime(ts){
+      const d = new Date(ts);
+      return d.toLocaleString(undefined, { hour:"2-digit", minute:"2-digit", day:"2-digit", month:"short" });
+    }
 
-let d=state.debt||{samuel:0,joel:0};
+    function defaultState(){
+      return {
+        days: {},
+        debt: { samuel: 0, joel: 0 },
+        missedProcessed: {},
+        pubs: {},
+        activity: []
+      };
+    }
 
-let text="All square ✅";
+    function safeState(s){
+      const base = defaultState();
+      s = s || {};
+      return {
+        days: s.days || base.days,
+        debt: s.debt || base.debt,
+        missedProcessed: s.missedProcessed || base.missedProcessed,
+        pubs: s.pubs || base.pubs,
+        activity: Array.isArray(s.activity) ? s.activity : base.activity
+      };
+    }
 
-if(d.samuel>d.joel)
-text=`Samuel owes Joel ${d.samuel-d.joel} 🍺`;
+    // -----------------------------
+    // Connect / Disconnect
+    // -----------------------------
+    async function connect(){
+      const code = document.getElementById("roomInput").value.toLowerCase().trim();
+      if(!code){
+        alert("Please enter a room code.");
+        return;
+      }
 
-if(d.joel>d.samuel)
-text=`Joel owes Samuel ${d.joel-d.samuel} 🍺`;
+      await auth.signInAnonymously();
 
-document.getElementById("debtDisplay").innerText=text;
-}
+      room = code;
+      document.getElementById("roomName").textContent = "Room: " + room;
 
-function renderPlayer(name){
+      document.getElementById("connectCard").classList.add("hidden");
+      document.getElementById("connectedPill").classList.remove("hidden");
+      document.getElementById("app").classList.remove("hidden");
 
-let el=document.getElementById(name+"Calendar");
-el.innerHTML="";
+      if(unsub) unsub();
 
-let now=new Date();
-let year=now.getFullYear();
-let month=now.getMonth();
+      unsub = db.collection("rooms").doc(room).onSnapshot(async snap => {
+        state = safeState(snap.data());
 
-let days=new Date(year,month+1,0).getDate();
+        // Reconcile missed days up to yesterday, for the currently viewed month only.
+        // This keeps it simple and prevents "random" reds while still applying the rule.
+        await reconcileMissesForViewMonth();
 
-for(let i=1;i<=days;i++){
+        renderAll();
+      });
+    }
 
-let d=new Date(year,month,i);
-let key=iso(d);
+    function disconnect(){
+      if(unsub) unsub();
+      unsub = null;
+      room = null;
+      state = null;
 
-let div=document.createElement("div");
-div.className="day";
-div.innerText=i;
+      document.getElementById("connectCard").classList.remove("hidden");
+      document.getElementById("connectedPill").classList.add("hidden");
+      document.getElementById("app").classList.add("hidden");
+    }
 
-let entry=state.entries?.[key];
+    // -----------------------------
+    // Core rule engine: reconcile misses
+    // - For each day that has ended (past), if no "studied" recorded, mark "missed" once.
+    // - Each missed day adds +1 beer owed by that person to the other.
+    // - Idempotent per date via missedProcessed[date] = true.
+    // -----------------------------
+    async function reconcileMissesForViewMonth(){
+      if(!room || !state) return;
 
-if(entry?.[name]) div.classList.add("doneDay");
-else if(key<iso(new Date()))
-div.classList.add("missedDay");
+      const y = viewYear;
+      const m = viewMonth;
 
-if(key===iso(new Date()))
-div.classList.add("today");
+      const start = startOfMonth(y,m);
+      const end = endOfMonth(y,m);
+      const today = new Date();
+      const todayKey = todayIso();
 
-el.appendChild(div);
-}
-}
+      const updates = {
+        days: {},
+        debt: { ...state.debt },
+        missedProcessed: { ...state.missedProcessed },
+        activity: [...state.activity]
+      };
 
-</script>
+      let changed = false;
 
+      // iterate dates in month
+      for(let d = new Date(start); d <= end; d.setDate(d.getDate()+1)){
+        const key = isoDate(d);
+
+        // Only process days strictly before today
+        if(key >= todayKey) continue;
+
+        // Process once per day
+        if(updates.missedProcessed[key] === true) continue;
+
+        const day = (state.days && state.days[key]) ? { ...state.days[key] } : {};
+
+        // If already has both statuses, still mark processed to avoid repeated work
+        const samStatus = day.samuel;
+        const joeStatus = day.joel;
+
+        // Determine misses (miss = not studied)
+        const samMissed = samStatus !== "studied";
+        const joeMissed = joeStatus !== "studied";
+
+        // If neither has any data and we are in the past, we still count as missed for both
+        // because the agreement is daily study.
+        // Mark explicit missed statuses for clarity in calendar.
+        if(samMissed && samStatus !== "missed"){
+          day.samuel = "missed";
+          updates.debt.samuel = (updates.debt.samuel || 0) + 1;
+          updates.activity.unshift(makeActivity("miss", `${displayName("samuel")} missed ${prettyDay(key)}. ${displayName("samuel")} owes ${displayName("joel")} +1 beer.`, { date:key, by:"samuel" }));
+          changed = true;
+        }
+        if(joeMissed && joeStatus !== "missed"){
+          day.joel = "missed";
+          updates.debt.joel = (updates.debt.joel || 0) + 1;
+          updates.activity.unshift(makeActivity("miss", `${displayName("joel")} missed ${prettyDay(key)}. ${displayName("joel")} owes ${displayName("samuel")} +1 beer.`, { date:key, by:"joel" }));
+          changed = true;
+        }
+
+        // If someone studied, keep that (do not overwrite)
+        if(samStatus === "studied") day.samuel = "studied";
+        if(joeStatus === "studied") day.joel = "studied";
+
+        // Write day if we set anything or it existed
+        updates.days[key] = day;
+
+        // Mark processed for the day regardless, so we do not repeatedly add beers
+        updates.missedProcessed[key] = true;
+        changed = true;
+      }
+
+      if(!changed) return;
+
+      // Cap activity to keep the room doc lean
+      updates.activity = updates.activity.slice(0, 60);
+
+      await db.collection("rooms").doc(room).set({
+        days: updates.days,
+        debt: updates.debt,
+        missedProcessed: updates.missedProcessed,
+        activity: updates.activity
+      }, { merge:true });
+    }
+
+    function prettyDay(dateIso){
+      const [y,m,d] = dateIso.split("-").map(Number);
+      const dt = new Date(y, m-1, d);
+      return dt.toLocaleString(undefined, { weekday:"short", day:"2-digit", month:"short" });
+    }
+
+    function makeActivity(type, msg, meta){
+      return {
+        t: Date.now(),
+        type,
+        msg,
+        meta: meta || {}
+      };
+    }
+
+    // -----------------------------
+    // Actions
+    // -----------------------------
+    async function markStudied(person){
+      if(!room || !state) return;
+
+      const key = todayIso();
+      const ref = db.collection("rooms").doc(room);
+
+      const day = (state.days && state.days[key]) ? { ...state.days[key] } : {};
+      if(day[person] === "studied") return;
+
+      day[person] = "studied";
+
+      const activity = [...state.activity];
+      activity.unshift(makeActivity("study", `${displayName(person)} studied today (${formatTime(Date.now())}).`, { date:key, by:person }));
+      const capped = activity.slice(0, 60);
+
+      await ref.set({
+        days: { [key]: day },
+        activity: capped
+      }, { merge:true });
+    }
+
+    function openBeerModal(fromPerson){
+      if(!state) return;
+
+      beerFrom = fromPerson;
+      beerTo = other(fromPerson);
+
+      // Populate "Bought for"
+      const sel = document.getElementById("beerFor");
+      sel.innerHTML = "";
+      const opt1 = document.createElement("option");
+      opt1.value = beerTo;
+      opt1.textContent = displayName(beerTo);
+      sel.appendChild(opt1);
+
+      // Allow selecting the other direction too (sometimes you buy an extra)
+      const opt2 = document.createElement("option");
+      opt2.value = fromPerson;
+      opt2.textContent = displayName(fromPerson) + " (bonus)";
+      sel.appendChild(opt2);
+
+      sel.value = beerTo;
+
+      // Pub datalist
+      refreshPubList();
+
+      document.getElementById("beerModalTitle").textContent = "Log Beer Bought";
+      document.getElementById("beerModalNote").textContent =
+        `This will settle 1 beer owed by ${displayName(fromPerson)}, if ${displayName(fromPerson)} owes any.`;
+
+      document.getElementById("pubInput").value = "";
+      document.getElementById("beerNote").value = "";
+
+      document.getElementById("beerBackdrop").classList.remove("hidden");
+    }
+
+    function closeBeerModal(evt){
+      if(evt && evt.target && evt.target.id !== "beerBackdrop") return;
+      document.getElementById("beerBackdrop").classList.add("hidden");
+    }
+
+    function refreshPubList(){
+      const dl = document.getElementById("pubList");
+      dl.innerHTML = "";
+
+      const pubs = state && state.pubs ? state.pubs : {};
+      const list = Object.entries(pubs)
+        .map(([id, p]) => ({ id, name: (p && p.name) ? p.name : id, lastUsedAt: p.lastUsedAt || 0 }))
+        .sort((a,b) => (b.lastUsedAt||0) - (a.lastUsedAt||0))
+        .slice(0, 20);
+
+      for(const p of list){
+        const opt = document.createElement("option");
+        opt.value = p.name;
+        dl.appendChild(opt);
+      }
+    }
+
+    function getPubIdByName(name){
+      const pubs = state && state.pubs ? state.pubs : {};
+      const n = (name || "").trim().toLowerCase();
+      for(const [id, p] of Object.entries(pubs)){
+        const pname = (p && p.name) ? p.name.trim().toLowerCase() : "";
+        if(pname === n) return id;
+      }
+      return null;
+    }
+
+    function makePubId(name){
+      const base = (name || "pub").trim().toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+      return base + "-" + String(Date.now()).slice(-6);
+    }
+
+    async function saveBeer(){
+      if(!room || !state) return;
+
+      const toPerson = document.getElementById("beerFor").value;
+      const pubName = document.getElementById("pubInput").value.trim();
+      const note = document.getElementById("beerNote").value.trim();
+
+      if(!pubName){
+        alert("Please enter a pub name.");
+        return;
+      }
+
+      // Determine whether this is settling an owed beer.
+      // We only decrement debt for beerFrom (the person paying) if they owe > 0
+      const debtNow = state.debt || { samuel:0, joel:0 };
+      const from = beerFrom;
+      const owes = Number(debtNow[from] || 0);
+
+      const settling = (toPerson === other(from)) && owes > 0;
+
+      // Pub upsert
+      let pubId = getPubIdByName(pubName);
+      if(!pubId) pubId = makePubId(pubName);
+
+      const pubs = { ...(state.pubs || {}) };
+      pubs[pubId] = { name: pubName, lastUsedAt: Date.now() };
+
+      // Activity log
+      const activity = [...(state.activity || [])];
+      const msg = settling
+        ? `${displayName(from)} bought ${displayName(other(from))} a beer at ${pubName} (settled 1).${note ? " Note: " + note : ""}`
+        : `${displayName(from)} logged a beer at ${pubName}.${note ? " Note: " + note : ""}`;
+
+      activity.unshift(makeActivity("beer", msg, { pubId, pubName, by:from, for:toPerson, settled:settling }));
+
+      // Update debt if settling
+      const newDebt = { ...debtNow };
+      if(settling){
+        newDebt[from] = Math.max(0, owes - 1);
+      }
+
+      await db.collection("rooms").doc(room).set({
+        pubs,
+        debt: newDebt,
+        activity: activity.slice(0, 60)
+      }, { merge:true });
+
+      closeBeerModal();
+    }
+
+    function quickExplain(person){
+      const d = state && state.debt ? state.debt : { samuel:0, joel:0 };
+      const owes = Number(d[person] || 0);
+      const them = other(person);
+      alert(
+        `${displayName(person)} owes ${displayName(them)}: ${owes} beer(s).\n\nA beer is added when a past day is missed.\nUse “Log Beer Bought” to settle it and record the pub.`
+      );
+    }
+
+    // -----------------------------
+    // Month navigation
+    // -----------------------------
+    async function shiftMonth(delta){
+      const dt = new Date(viewYear, viewMonth + delta, 1);
+      viewYear = dt.getFullYear();
+      viewMonth = dt.getMonth();
+
+      // When month changes, reconcile misses for that month too
+      if(room && state){
+        await reconcileMissesForViewMonth();
+      }
+
+      renderAll();
+    }
+
+    // -----------------------------
+    // Rendering
+    // -----------------------------
+    function renderAll(){
+      if(!state) return;
+
+      // Header
+      document.getElementById("monthTitle").textContent = formatMonthTitle(viewYear, viewMonth);
+      document.getElementById("todayChip").textContent = "Today: " + prettyDay(todayIso());
+
+      // Cards
+      renderPlayer("samuel");
+      renderPlayer("joel");
+
+      // Scoreboard
+      const d = state.debt || { samuel:0, joel:0 };
+      document.getElementById("scoreSamuel").textContent = `${Number(d.samuel || 0)} 🍺`;
+      document.getElementById("scoreJoel").textContent = `${Number(d.joel || 0)} 🍺`;
+
+      const net = (Number(d.samuel||0) - Number(d.joel||0));
+      const netNote = document.getElementById("netNote");
+      if(net === 0){
+        netNote.textContent = "All square ✅";
+      }else if(net > 0){
+        netNote.textContent = `Samuel owes Joel ${net} 🍺`;
+      }else{
+        netNote.textContent = `Joel owes Samuel ${Math.abs(net)} 🍺`;
+      }
+
+      // Activity
+      renderActivity();
+    }
+
+    function renderPlayer(person){
+      const them = other(person);
+      const d = state.debt || { samuel:0, joel:0 };
+
+      // Owed labels
+      document.getElementById(person + "OwesLabel").textContent = `${displayName(person)} owes ${displayName(them)}`;
+      document.getElementById(person + "OwesCount").textContent = Number(d[person] || 0);
+
+      // Studied Today button state
+      const key = todayIso();
+      const day = state.days && state.days[key] ? state.days[key] : {};
+      const btn = document.getElementById(person + "DoneBtn");
+      const done = (day && day[person] === "studied");
+
+      btn.disabled = done;
+      btn.textContent = done ? "✅ Studied Today ✓" : "✅ Studied Today";
+
+      // Metrics
+      const monthCount = countStudiedInMonth(person, viewYear, viewMonth);
+      const streak = currentStreak(person);
+
+      document.getElementById(person + "MonthCount").textContent = `${monthCount} / ${daysInMonth(viewYear, viewMonth)}`;
+      document.getElementById(person + "Streak").textContent = `${streak} day${streak === 1 ? "" : "s"}`;
+
+      // Calendar
+      renderCalendar(person, viewYear, viewMonth);
+
+      // Sub line
+      const sub = document.getElementById(person + "Sub");
+      sub.textContent = `Tracking ${formatMonthTitle(viewYear, viewMonth)}`;
+    }
+
+    function countStudiedInMonth(person, y, m){
+      const totalDays = daysInMonth(y,m);
+      let c = 0;
+      for(let i=1;i<=totalDays;i++){
+        const key = isoDate(new Date(y,m,i));
+        const day = state.days && state.days[key] ? state.days[key] : null;
+        if(day && day[person] === "studied") c++;
+      }
+      return c;
+    }
+
+    function currentStreak(person){
+      // Streak counts consecutive studied days ending today if studied today, else ending yesterday.
+      let d = new Date();
+      let key = isoDate(d);
+      const todayDay = state.days && state.days[key] ? state.days[key] : null;
+      const studiedToday = todayDay && todayDay[person] === "studied";
+
+      if(!studiedToday){
+        d.setDate(d.getDate() - 1);
+      }
+
+      let streak = 0;
+      for(;;){
+        const k = isoDate(d);
+        const day = state.days && state.days[k] ? state.days[k] : null;
+        if(day && day[person] === "studied"){
+          streak++;
+          d.setDate(d.getDate() - 1);
+          continue;
+        }
+        break;
+      }
+      return streak;
+    }
+
+    function renderCalendar(person, y, m){
+      const grid = document.getElementById(person + "Calendar");
+      grid.innerHTML = "";
+
+      const first = new Date(y,m,1);
+      // We want Monday-first calendar.
+      // JS getDay(): Sun=0..Sat=6
+      // Convert to Monday-first index: Mon=0..Sun=6
+      const mondayFirstIndex = (first.getDay() + 6) % 7;
+
+      // Leading blanks
+      for(let i=0;i<mondayFirstIndex;i++){
+        const div = document.createElement("div");
+        div.className = "day muted";
+        div.textContent = "";
+        grid.appendChild(div);
+      }
+
+      const total = daysInMonth(y,m);
+      const todayKey = todayIso();
+
+      for(let i=1;i<=total;i++){
+        const key = isoDate(new Date(y,m,i));
+        const div = document.createElement("div");
+        div.className = "day";
+        div.textContent = String(i);
+
+        const day = state.days && state.days[key] ? state.days[key] : null;
+        const status = day ? day[person] : null;
+
+        if(status === "studied"){
+          div.classList.add("studied");
+        }else if(status === "missed"){
+          div.classList.add("missed");
+        }else{
+          // If the day is in the past, but not processed (rare), do not show it as missed yet.
+          // This prevents accidental reds while sync is happening.
+        }
+
+        if(key === todayKey){
+          div.classList.add("today");
+        }
+
+        const dot = document.createElement("div");
+        dot.className = "dot";
+        div.appendChild(dot);
+
+        grid.appendChild(div);
+      }
+    }
+
+    function renderActivity(){
+      const feed = document.getElementById("activityFeed");
+      feed.innerHTML = "";
+
+      const items = (state.activity || []).slice(0, 10);
+
+      if(items.length === 0){
+        const empty = document.createElement("div");
+        empty.className = "pillNote";
+        empty.textContent = "No activity yet. Mark today’s study to get started.";
+        feed.appendChild(empty);
+        return;
+      }
+
+      for(const it of items){
+        const row = document.createElement("div");
+        row.className = "item";
+
+        const icon = document.createElement("div");
+        icon.className = "icon";
+
+        let symbol = "•";
+        if(it.type === "study") symbol = "✓";
+        if(it.type === "miss") symbol = "!";
+        if(it.type === "beer") symbol = "🍺";
+        icon.textContent = symbol;
+
+        const text = document.createElement("div");
+        text.className = "text";
+
+        const line1 = document.createElement("p");
+        line1.className = "line1";
+        line1.textContent = it.msg || "Activity";
+
+        const line2 = document.createElement("p");
+        line2.className = "line2";
+        line2.textContent = formatTime(it.t || Date.now());
+
+        text.appendChild(line1);
+        text.appendChild(line2);
+
+        row.appendChild(icon);
+        row.appendChild(text);
+
+        feed.appendChild(row);
+      }
+    }
+
+    // Initial month title even before connect
+    (function initHeader(){
+      document.getElementById("monthTitle").textContent = formatMonthTitle(viewYear, viewMonth);
+      document.getElementById("todayChip").textContent = "Today: " + prettyDay(todayIso());
+    })();
+  </script>
 </body>
 </html>
