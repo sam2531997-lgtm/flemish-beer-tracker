@@ -1,98 +1,106 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8">
+
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 
 <title>Flemish Tracker</title>
+
+<link rel="manifest" href="manifest.json">
 
 <style>
 
 body{
 margin:0;
-font-family:system-ui;
-background:#F6F7FB;
-color:#111827;
-padding:16px;
+font-family:-apple-system,BlinkMacSystemFont,Segoe UI;
+background:#f7f9fc;
+color:#1c1c1c;
 }
 
-.wrap{
-max-width:750px;
+h1{
+text-align:center;
+margin:24px 0 10px;
+font-weight:700;
+}
+
+.container{
+max-width:760px;
 margin:auto;
+padding:10px;
 }
 
 .card{
 background:white;
-border:1px solid #E5E7EB;
-border-radius:14px;
-padding:16px;
-margin-bottom:16px;
+border-radius:16px;
+padding:20px;
+margin:18px 0;
+box-shadow:0 8px 24px rgba(0,0,0,.06);
 }
 
-h1{
-margin:0 0 10px;
+input{
+width:100%;
+padding:12px;
+border-radius:10px;
+border:1px solid #ddd;
+margin-top:6px;
 }
 
 button{
 width:100%;
 padding:16px;
-font-size:18px;
 border:none;
 border-radius:12px;
-cursor:pointer;
-background:#22C55E;
+background:#4CAF50;
 color:white;
+font-size:16px;
 font-weight:600;
+margin-top:14px;
+cursor:pointer;
+transition:.2s;
 }
 
-button:disabled{
-opacity:.5;
+button:hover{
+transform:scale(1.02);
 }
 
-.row{
+.stats{
 display:flex;
 justify-content:space-between;
-margin:6px 0;
-}
-
-.streak{
-color:#F59E0B;
-font-weight:600;
-}
-
-.beer{
-color:#D97706;
+margin-top:14px;
 font-weight:600;
 }
 
 .calendar{
 display:grid;
 grid-template-columns:repeat(7,1fr);
-gap:4px;
-margin-top:10px;
+gap:6px;
+margin-top:16px;
 }
 
 .day{
-aspect-ratio:1;
-border-radius:4px;
-background:#E5E7EB;
-}
-
-.done{background:#22C55E;}
-.miss{background:#EF4444;}
-.today{outline:2px solid #F59E0B;}
-
-.small{
-color:#6B7280;
-font-size:14px;
-}
-
-input{
-width:100%;
-padding:10px;
-margin-top:8px;
+padding:12px 0;
 border-radius:8px;
-border:1px solid #E5E7EB;
+font-size:13px;
+text-align:center;
+background:#eef1f5;
+}
+
+.done{background:#66bb6a;color:white;}
+.missed{background:#ef5350;color:white;}
+.today{outline:3px solid orange;}
+.future{opacity:.35}
+
+.header{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:8px;
+}
+
+.streak{
+font-size:14px;
+opacity:.7;
 }
 
 </style>
@@ -100,211 +108,173 @@ border:1px solid #E5E7EB;
 
 <body>
 
-<div class="wrap">
+<h1>🇧🇪 Flemish Tracker</h1>
 
-<h1>Flemish Tracker</h1>
+<div class="container">
 
 <div class="card">
 Room
-<input id="roomInput">
+<input id="roomInput" value="samuel-joel">
 <button onclick="connect()">Connect</button>
-<div id="status" class="small"></div>
+<div id="status"></div>
 </div>
 
-<div class="card">
-<div id="today"></div>
-<button id="doneBtn" onclick="markDone()">✅ I DID FLEMISH TODAY</button>
-</div>
-
-<div class="card">
-<div class="row">
-<div>Samuel</div>
-<div id="samuelStats"></div>
-</div>
-<div id="samuelCal" class="calendar"></div>
-</div>
-
-<div class="card">
-<div class="row">
-<div>Joel</div>
-<div id="joelStats"></div>
-</div>
-<div id="joelCal" class="calendar"></div>
-</div>
+<div id="samuel"></div>
+<div id="joel"></div>
 
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
 <script>
 
-const firebaseConfig={
+firebase.initializeApp({
 apiKey:"AIzaSyCCnKfM04RXZxP57j7MjhDjK-4wM8oAjFQ",
 authDomain:"flemish-beer-tracker.firebaseapp.com",
 projectId:"flemish-beer-tracker"
-};
+});
 
-firebase.initializeApp(firebaseConfig);
-
-const auth=firebase.auth();
 const db=firebase.firestore();
+const auth=firebase.auth();
 
-let room=null;
-let me=null;
+let room;
+let unsub;
 
-function todayISO(){
-return new Date().toISOString().slice(0,10);
-}
-
-async function authReady(){
-if(!auth.currentUser)
-await auth.signInAnonymously();
-}
-
-function identity(){
-
-if(localStorage.player){
-me=localStorage.player;
-return;
-}
-
-me=prompt("samuel or joel").toLowerCase();
-localStorage.player=me;
-}
+const today=()=>new Date().toISOString().slice(0,10);
 
 async function connect(){
 
-await authReady();
-identity();
+await auth.signInAnonymously();
 
-room=document.getElementById("roomInput").value.toLowerCase();
-localStorage.room=room;
+room=document.getElementById("roomInput").value;
 
-db.collection("rooms").doc(room)
-.onSnapshot(snap=>{
-const data=snap.data()||{};
-autoMiss(data);
+const ref=db.collection("rooms").doc(room);
+
+await ref.set({init:true},{merge:true});
+
+if(unsub)unsub();
+
+unsub=ref.onSnapshot(async snap=>{
+let data=snap.data()?.entries||{};
+await autoMiss(ref,data);
 render(data);
 });
 
-document.getElementById("status").innerText="Connected";
+document.getElementById("status").innerText="Connected ✅";
 }
 
-async function autoMiss(data){
+async function autoMiss(ref,entries){
 
-const entries=data.entries||{};
-const yesterday=new Date(Date.now()-86400000)
-.toISOString().slice(0,10);
+const y=new Date();
+y.setDate(y.getDate()-1);
+const yd=y.toISOString().slice(0,10);
 
-if(entries[yesterday]) return;
+if(entries[yd]) return;
 
-await db.collection("rooms").doc(room)
-.set({
-[`entries.${yesterday}`]:{
-samuel:"miss",
-joel:"miss"
+await ref.set({
+entries:{
+[yd]:{
+samuel:false,
+joel:false
+}
 }
 },{merge:true});
 }
 
-async function markDone(){
+async function done(person){
 
-const today=todayISO();
-
-await db.collection("rooms").doc(room)
-.set({
-[`entries.${today}.${me}`]:"done"
+const ref=db.collection("rooms").doc(room);
+await ref.set({
+entries:{
+[today()]:{
+[person]:true
+}
+}
 },{merge:true});
 }
 
-function calc(entries,name){
+function streak(entries,p){
 
-let beers=0;
-let streak=0;
+let days=0;
+let d=new Date();
 
-const dates=Object.keys(entries).sort().reverse();
-
-for(const d of dates){
-
-if(entries[d][name]==="miss")
-beers++;
-
-if(entries[d][name]==="done")
-streak++;
+while(true){
+let k=d.toISOString().slice(0,10);
+if(entries[k]?.[p]) days++;
 else break;
+d.setDate(d.getDate()-1);
 }
 
-return{beers,streak};
+return days;
 }
 
-function buildCalendar(el,entries,name){
+function beers(entries,p){
+return Object.values(entries)
+.filter(e=>e[p]===false).length;
+}
 
-el.innerHTML="";
+function calendar(entries,p){
 
 const now=new Date();
-const year=now.getFullYear();
-const month=now.getMonth();
+const y=now.getFullYear();
+const m=now.getMonth();
+const last=new Date(y,m+1,0).getDate();
 
-for(let i=1;i<=31;i++){
+let html='<div class="calendar">';
 
-const d=new Date(year,month,i);
-if(d.getMonth()!=month) continue;
+for(let i=1;i<=last;i++){
 
-const iso=d.toISOString().slice(0,10);
+let d=new Date(y,m,i).toISOString().slice(0,10);
+let c="day";
 
-const div=document.createElement("div");
-div.className="day";
+if(d>today())c+=" future";
+else if(entries[d]?.[p]===true)c+=" done";
+else if(entries[d]?.[p]===false)c+=" missed";
 
-if(entries[iso]){
-if(entries[iso][name]==="done")
-div.classList.add("done");
-else
-div.classList.add("miss");
+if(d===today())c+=" today";
+
+html+=`<div class="${c}">${i}</div>`;
 }
 
-if(iso===todayISO())
-div.classList.add("today");
+html+="</div>";
 
-el.appendChild(div);
-}
+return html;
 }
 
-function render(data){
+function panel(id,name,entries){
 
-const entries=data.entries||{};
+return `
+<div class="card">
 
-document.getElementById("today")
-innerText="Today: "+todayISO();
+<div class="header">
+<h2>${name}</h2>
+<div class="streak">🔥 ${streak(entries,id)} day streak</div>
+</div>
 
-const s=calc(entries,"samuel");
-const j=calc(entries,"joel");
+<button onclick="done('${id}')">
+✅ I DID FLEMISH TODAY
+</button>
 
-document.getElementById("samuelStats")
-innerHTML=`🔥 ${s.streak} | 🍺 ${s.beers}`;
+<div class="stats">
+<div>🍺 Beers owed: ${beers(entries,id)}</div>
+</div>
 
-document.getElementById("joelStats")
-innerHTML=`🔥 ${j.streak} | 🍺 ${j.beers}`;
+${calendar(entries,id)}
 
-buildCalendar(
-document.getElementById("samuelCal"),
-entries,"samuel"
-);
-
-buildCalendar(
-document.getElementById("joelCal"),
-entries,"joel"
-);
+</div>`;
 }
 
-window.onload=()=>{
-if(localStorage.room){
-document.getElementById("roomInput").value=
-localStorage.room;
-connect();
+function render(entries){
+
+document.getElementById("samuel")
+.innerHTML=panel("samuel","Samuel",entries);
+
+document.getElementById("joel")
+.innerHTML=panel("joel","Joel",entries);
+
 }
-};
 
 </script>
 
