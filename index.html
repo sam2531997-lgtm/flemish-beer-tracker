@@ -1,3 +1,8 @@
+// Force-hide modals on boot (prevents "stuck overlay" even if cached HTML is wrong)
+window.addEventListener("DOMContentLoaded", () => {
+  const bb = document.getElementById("beerBackdrop");
+  if (bb) bb.classList.add("hidden");
+});
 <!DOCTYPE html>
 <html lang="en">
 <head>
