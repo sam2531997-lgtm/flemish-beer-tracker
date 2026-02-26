@@ -1,8 +1,3 @@
-// Force-hide modals on boot (prevents "stuck overlay" even if cached HTML is wrong)
-window.addEventListener("DOMContentLoaded", () => {
-  const bb = document.getElementById("beerBackdrop");
-  if (bb) bb.classList.add("hidden");
-});
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -478,7 +473,8 @@ window.addEventListener("DOMContentLoaded", () => {
       letter-spacing:-0.02em;
     }
 
-    .hidden{display:none;}
+    /* IMPORTANT: ensure hidden always wins (fixes "stuck modal") */
+    .hidden{display:none !important;}
 
     /* Modal */
     .backdrop{
@@ -767,6 +763,12 @@ window.addEventListener("DOMContentLoaded", () => {
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
   <script>
+    // Force-hide modals on boot (prevents stuck overlay)
+    window.addEventListener("DOMContentLoaded", () => {
+      const bb = document.getElementById("beerBackdrop");
+      if (bb) bb.classList.add("hidden");
+    });
+
     // -----------------------------
     // Firebase
     // -----------------------------
@@ -801,7 +803,7 @@ window.addEventListener("DOMContentLoaded", () => {
     let viewMonth = new Date().getMonth(); // 0-11
 
     // Local-only beer modal context
-    let beerFrom = null; // who is paying (the one whose button opened)
+    let beerFrom = null; // who is paying
     let beerTo = null;   // who it's for (defaults to the other)
 
     // -----------------------------
@@ -828,10 +830,6 @@ window.addEventListener("DOMContentLoaded", () => {
 
     function daysInMonth(y,m){
       return new Date(y, m+1, 0).getDate();
-    }
-
-    function isPast(dateIso){
-      return dateIso < todayIso();
     }
 
     function other(person){
@@ -893,15 +891,13 @@ window.addEventListener("DOMContentLoaded", () => {
       document.getElementById("connectedPill").classList.remove("hidden");
       document.getElementById("app").classList.remove("hidden");
 
+      closeBeerModal();
+
       if(unsub) unsub();
 
       unsub = db.collection("rooms").doc(room).onSnapshot(async snap => {
         state = safeState(snap.data());
-
-        // Reconcile missed days up to yesterday, for the currently viewed month only.
-        // This keeps it simple and prevents "random" reds while still applying the rule.
         await reconcileMissesForViewMonth();
-
         renderAll();
       });
     }
@@ -912,16 +908,15 @@ window.addEventListener("DOMContentLoaded", () => {
       room = null;
       state = null;
 
+      closeBeerModal();
+
       document.getElementById("connectCard").classList.remove("hidden");
       document.getElementById("connectedPill").classList.add("hidden");
       document.getElementById("app").classList.add("hidden");
     }
 
     // -----------------------------
-    // Core rule engine: reconcile misses
-    // - For each day that has ended (past), if no "studied" recorded, mark "missed" once.
-    // - Each missed day adds +1 beer owed by that person to the other.
-    // - Idempotent per date via missedProcessed[date] = true.
+    // Rule engine: reconcile misses (idempotent)
     // -----------------------------
     async function reconcileMissesForViewMonth(){
       if(!room || !state) return;
@@ -931,7 +926,6 @@ window.addEventListener("DOMContentLoaded", () => {
 
       const start = startOfMonth(y,m);
       const end = endOfMonth(y,m);
-      const today = new Date();
       const todayKey = todayIso();
 
       const updates = {
@@ -943,57 +937,48 @@ window.addEventListener("DOMContentLoaded", () => {
 
       let changed = false;
 
-      // iterate dates in month
       for(let d = new Date(start); d <= end; d.setDate(d.getDate()+1)){
         const key = isoDate(d);
-
-        // Only process days strictly before today
         if(key >= todayKey) continue;
-
-        // Process once per day
         if(updates.missedProcessed[key] === true) continue;
 
         const day = (state.days && state.days[key]) ? { ...state.days[key] } : {};
 
-        // If already has both statuses, still mark processed to avoid repeated work
         const samStatus = day.samuel;
         const joeStatus = day.joel;
 
-        // Determine misses (miss = not studied)
         const samMissed = samStatus !== "studied";
         const joeMissed = joeStatus !== "studied";
 
-        // If neither has any data and we are in the past, we still count as missed for both
-        // because the agreement is daily study.
-        // Mark explicit missed statuses for clarity in calendar.
         if(samMissed && samStatus !== "missed"){
           day.samuel = "missed";
           updates.debt.samuel = (updates.debt.samuel || 0) + 1;
-          updates.activity.unshift(makeActivity("miss", `${displayName("samuel")} missed ${prettyDay(key)}. ${displayName("samuel")} owes ${displayName("joel")} +1 beer.`, { date:key, by:"samuel" }));
+          updates.activity.unshift(makeActivity("miss",
+            `${displayName("samuel")} missed ${prettyDay(key)}. ${displayName("samuel")} owes ${displayName("joel")} +1 beer.`,
+            { date:key, by:"samuel" }
+          ));
           changed = true;
         }
         if(joeMissed && joeStatus !== "missed"){
           day.joel = "missed";
           updates.debt.joel = (updates.debt.joel || 0) + 1;
-          updates.activity.unshift(makeActivity("miss", `${displayName("joel")} missed ${prettyDay(key)}. ${displayName("joel")} owes ${displayName("samuel")} +1 beer.`, { date:key, by:"joel" }));
+          updates.activity.unshift(makeActivity("miss",
+            `${displayName("joel")} missed ${prettyDay(key)}. ${displayName("joel")} owes ${displayName("samuel")} +1 beer.`,
+            { date:key, by:"joel" }
+          ));
           changed = true;
         }
 
-        // If someone studied, keep that (do not overwrite)
         if(samStatus === "studied") day.samuel = "studied";
         if(joeStatus === "studied") day.joel = "studied";
 
-        // Write day if we set anything or it existed
         updates.days[key] = day;
-
-        // Mark processed for the day regardless, so we do not repeatedly add beers
         updates.missedProcessed[key] = true;
         changed = true;
       }
 
       if(!changed) return;
 
-      // Cap activity to keep the room doc lean
       updates.activity = updates.activity.slice(0, 60);
 
       await db.collection("rooms").doc(room).set({
@@ -1011,12 +996,7 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     function makeActivity(type, msg, meta){
-      return {
-        t: Date.now(),
-        type,
-        msg,
-        meta: meta || {}
-      };
+      return { t: Date.now(), type, msg, meta: meta || {} };
     }
 
     // -----------------------------
@@ -1044,20 +1024,22 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     function openBeerModal(fromPerson){
-      if(!state) return;
+      if(!room || !state){
+        alert("Connect to a room first.");
+        return;
+      }
 
       beerFrom = fromPerson;
       beerTo = other(fromPerson);
 
-      // Populate "Bought for"
       const sel = document.getElementById("beerFor");
       sel.innerHTML = "";
+
       const opt1 = document.createElement("option");
       opt1.value = beerTo;
       opt1.textContent = displayName(beerTo);
       sel.appendChild(opt1);
 
-      // Allow selecting the other direction too (sometimes you buy an extra)
       const opt2 = document.createElement("option");
       opt2.value = fromPerson;
       opt2.textContent = displayName(fromPerson) + " (bonus)";
@@ -1065,7 +1047,6 @@ window.addEventListener("DOMContentLoaded", () => {
 
       sel.value = beerTo;
 
-      // Pub datalist
       refreshPubList();
 
       document.getElementById("beerModalTitle").textContent = "Log Beer Bought";
@@ -1080,7 +1061,8 @@ window.addEventListener("DOMContentLoaded", () => {
 
     function closeBeerModal(evt){
       if(evt && evt.target && evt.target.id !== "beerBackdrop") return;
-      document.getElementById("beerBackdrop").classList.add("hidden");
+      const bb = document.getElementById("beerBackdrop");
+      if(bb) bb.classList.add("hidden");
     }
 
     function refreshPubList(){
@@ -1127,22 +1109,18 @@ window.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      // Determine whether this is settling an owed beer.
-      // We only decrement debt for beerFrom (the person paying) if they owe > 0
       const debtNow = state.debt || { samuel:0, joel:0 };
       const from = beerFrom;
       const owes = Number(debtNow[from] || 0);
 
       const settling = (toPerson === other(from)) && owes > 0;
 
-      // Pub upsert
       let pubId = getPubIdByName(pubName);
       if(!pubId) pubId = makePubId(pubName);
 
       const pubs = { ...(state.pubs || {}) };
       pubs[pubId] = { name: pubName, lastUsedAt: Date.now() };
 
-      // Activity log
       const activity = [...(state.activity || [])];
       const msg = settling
         ? `${displayName(from)} bought ${displayName(other(from))} a beer at ${pubName} (settled 1).${note ? " Note: " + note : ""}`
@@ -1150,7 +1128,6 @@ window.addEventListener("DOMContentLoaded", () => {
 
       activity.unshift(makeActivity("beer", msg, { pubId, pubName, by:from, for:toPerson, settled:settling }));
 
-      // Update debt if settling
       const newDebt = { ...debtNow };
       if(settling){
         newDebt[from] = Math.max(0, owes - 1);
@@ -1182,7 +1159,6 @@ window.addEventListener("DOMContentLoaded", () => {
       viewYear = dt.getFullYear();
       viewMonth = dt.getMonth();
 
-      // When month changes, reconcile misses for that month too
       if(room && state){
         await reconcileMissesForViewMonth();
       }
@@ -1196,15 +1172,12 @@ window.addEventListener("DOMContentLoaded", () => {
     function renderAll(){
       if(!state) return;
 
-      // Header
       document.getElementById("monthTitle").textContent = formatMonthTitle(viewYear, viewMonth);
       document.getElementById("todayChip").textContent = "Today: " + prettyDay(todayIso());
 
-      // Cards
       renderPlayer("samuel");
       renderPlayer("joel");
 
-      // Scoreboard
       const d = state.debt || { samuel:0, joel:0 };
       document.getElementById("scoreSamuel").textContent = `${Number(d.samuel || 0)} 🍺`;
       document.getElementById("scoreJoel").textContent = `${Number(d.joel || 0)} 🍺`;
@@ -1219,7 +1192,6 @@ window.addEventListener("DOMContentLoaded", () => {
         netNote.textContent = `Joel owes Samuel ${Math.abs(net)} 🍺`;
       }
 
-      // Activity
       renderActivity();
     }
 
@@ -1227,11 +1199,9 @@ window.addEventListener("DOMContentLoaded", () => {
       const them = other(person);
       const d = state.debt || { samuel:0, joel:0 };
 
-      // Owed labels
       document.getElementById(person + "OwesLabel").textContent = `${displayName(person)} owes ${displayName(them)}`;
       document.getElementById(person + "OwesCount").textContent = Number(d[person] || 0);
 
-      // Studied Today button state
       const key = todayIso();
       const day = state.days && state.days[key] ? state.days[key] : {};
       const btn = document.getElementById(person + "DoneBtn");
@@ -1240,19 +1210,15 @@ window.addEventListener("DOMContentLoaded", () => {
       btn.disabled = done;
       btn.textContent = done ? "✅ Studied Today ✓" : "✅ Studied Today";
 
-      // Metrics
       const monthCount = countStudiedInMonth(person, viewYear, viewMonth);
       const streak = currentStreak(person);
 
       document.getElementById(person + "MonthCount").textContent = `${monthCount} / ${daysInMonth(viewYear, viewMonth)}`;
       document.getElementById(person + "Streak").textContent = `${streak} day${streak === 1 ? "" : "s"}`;
 
-      // Calendar
       renderCalendar(person, viewYear, viewMonth);
 
-      // Sub line
-      const sub = document.getElementById(person + "Sub");
-      sub.textContent = `Tracking ${formatMonthTitle(viewYear, viewMonth)}`;
+      document.getElementById(person + "Sub").textContent = `Tracking ${formatMonthTitle(viewYear, viewMonth)}`;
     }
 
     function countStudiedInMonth(person, y, m){
@@ -1267,7 +1233,6 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     function currentStreak(person){
-      // Streak counts consecutive studied days ending today if studied today, else ending yesterday.
       let d = new Date();
       let key = isoDate(d);
       const todayDay = state.days && state.days[key] ? state.days[key] : null;
@@ -1296,12 +1261,8 @@ window.addEventListener("DOMContentLoaded", () => {
       grid.innerHTML = "";
 
       const first = new Date(y,m,1);
-      // We want Monday-first calendar.
-      // JS getDay(): Sun=0..Sat=6
-      // Convert to Monday-first index: Mon=0..Sun=6
       const mondayFirstIndex = (first.getDay() + 6) % 7;
 
-      // Leading blanks
       for(let i=0;i<mondayFirstIndex;i++){
         const div = document.createElement("div");
         div.className = "day muted";
@@ -1325,9 +1286,6 @@ window.addEventListener("DOMContentLoaded", () => {
           div.classList.add("studied");
         }else if(status === "missed"){
           div.classList.add("missed");
-        }else{
-          // If the day is in the past, but not processed (rare), do not show it as missed yet.
-          // This prevents accidental reds while sync is happening.
         }
 
         if(key === todayKey){
