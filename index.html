@@ -788,14 +788,6 @@
     let room = null;
     let unsub = null;
 
-    // Firestore doc shape (single room doc):
-    // {
-    //   days: { "YYYY-MM-DD": { samuel: "studied"|"missed", joel: "studied"|"missed" } },
-    //   debt: { samuel: number, joel: number }, // beers owed BY that person
-    //   missedProcessed: { "YYYY-MM-DD": true }, // day-level idempotence
-    //   pubs: { "pubId": { name, lastUsedAt } },
-    //   activity: [ { t, type, msg, meta } ] // newest first
-    // }
     let state = null;
 
     // Local-only UI month navigation
@@ -803,8 +795,23 @@
     let viewMonth = new Date().getMonth(); // 0-11
 
     // Local-only beer modal context
-    let beerFrom = null; // who is paying
-    let beerTo = null;   // who it's for (defaults to the other)
+    let beerFrom = null;
+    let beerTo = null;
+
+    // -----------------------------
+    // Room persistence
+    // -----------------------------
+    const ROOM_STORAGE_KEY = "flemishTracker.room";
+
+    function saveRoomToStorage(code){
+      localStorage.setItem(ROOM_STORAGE_KEY, code);
+    }
+    function loadRoomFromStorage(){
+      return (localStorage.getItem(ROOM_STORAGE_KEY) || "").trim();
+    }
+    function clearRoomFromStorage(){
+      localStorage.removeItem(ROOM_STORAGE_KEY);
+    }
 
     // -----------------------------
     // Helpers
@@ -852,6 +859,7 @@
 
     function defaultState(){
       return {
+        startDate: null,             // YYYY-MM-DD, set once per room
         days: {},
         debt: { samuel: 0, joel: 0 },
         missedProcessed: {},
@@ -864,12 +872,17 @@
       const base = defaultState();
       s = s || {};
       return {
+        startDate: s.startDate || base.startDate,
         days: s.days || base.days,
         debt: s.debt || base.debt,
         missedProcessed: s.missedProcessed || base.missedProcessed,
         pubs: s.pubs || base.pubs,
         activity: Array.isArray(s.activity) ? s.activity : base.activity
       };
+    }
+
+    function roomStartDate(){
+      return (state && state.startDate) ? state.startDate : todayIso();
     }
 
     // -----------------------------
@@ -885,6 +898,8 @@
       await auth.signInAnonymously();
 
       room = code;
+      saveRoomToStorage(room);
+
       document.getElementById("roomName").textContent = "Room: " + room;
 
       document.getElementById("connectCard").classList.add("hidden");
@@ -897,6 +912,13 @@
 
       unsub = db.collection("rooms").doc(room).onSnapshot(async snap => {
         state = safeState(snap.data());
+
+        // Ensure room has a startDate (set once, first time room is used)
+        if(!snap.exists || !snap.data()?.startDate){
+          await db.collection("rooms").doc(room).set({ startDate: todayIso() }, { merge:true });
+          return; // snapshot will re-fire with startDate present
+        }
+
         await reconcileMissesForViewMonth();
         renderAll();
       });
@@ -908,6 +930,7 @@
       room = null;
       state = null;
 
+      clearRoomFromStorage();
       closeBeerModal();
 
       document.getElementById("connectCard").classList.remove("hidden");
@@ -916,7 +939,7 @@
     }
 
     // -----------------------------
-    // Rule engine: reconcile misses (idempotent)
+    // Rule engine: reconcile misses (idempotent, starts from startDate)
     // -----------------------------
     async function reconcileMissesForViewMonth(){
       if(!room || !state) return;
@@ -927,6 +950,7 @@
       const start = startOfMonth(y,m);
       const end = endOfMonth(y,m);
       const todayKey = todayIso();
+      const startKey = roomStartDate();
 
       const updates = {
         days: {},
@@ -939,7 +963,14 @@
 
       for(let d = new Date(start); d <= end; d.setDate(d.getDate()+1)){
         const key = isoDate(d);
+
+        // Do not backfill before room start date
+        if(key < startKey) continue;
+
+        // Only process days strictly before today
         if(key >= todayKey) continue;
+
+        // Process once per day
         if(updates.missedProcessed[key] === true) continue;
 
         const day = (state.days && state.days[key]) ? { ...state.days[key] } : {};
@@ -959,6 +990,7 @@
           ));
           changed = true;
         }
+
         if(joeMissed && joeStatus !== "missed"){
           day.joel = "missed";
           updates.debt.joel = (updates.debt.joel || 0) + 1;
@@ -1147,7 +1179,7 @@
       const owes = Number(d[person] || 0);
       const them = other(person);
       alert(
-        `${displayName(person)} owes ${displayName(them)}: ${owes} beer(s).\n\nA beer is added when a past day is missed.\nUse “Log Beer Bought” to settle it and record the pub.`
+        `${displayName(person)} owes ${displayName(them)}: ${owes} beer(s).\n\nA beer is added when a past day is missed (from the room start date).\nUse “Log Beer Bought” to settle it and record the pub.`
       );
     }
 
@@ -1353,6 +1385,15 @@
       document.getElementById("monthTitle").textContent = formatMonthTitle(viewYear, viewMonth);
       document.getElementById("todayChip").textContent = "Today: " + prettyDay(todayIso());
     })();
+
+    // Auto-connect to saved room on load
+    window.addEventListener("DOMContentLoaded", async () => {
+      const saved = loadRoomFromStorage();
+      if(saved){
+        document.getElementById("roomInput").value = saved;
+        await connect();
+      }
+    });
   </script>
 </body>
 </html>
