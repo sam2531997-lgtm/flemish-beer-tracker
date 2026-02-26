@@ -4,95 +4,132 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 
-<title>Flemish Beer Pact</title>
+<title>Flemish Tracker</title>
 
 <style>
+
 body{
 margin:0;
-background:#0B0F1A;
-color:white;
 font-family:system-ui;
-padding:20px;
+background:#F6F7FB;
+color:#111827;
+padding:16px;
 }
 
-.wrap{max-width:700px;margin:auto}
+.wrap{
+max-width:750px;
+margin:auto;
+}
 
 .card{
-background:#141A2B;
+background:white;
+border:1px solid #E5E7EB;
 border-radius:14px;
 padding:16px;
-margin-bottom:14px;
+margin-bottom:16px;
 }
 
-h1{margin:0 0 6px}
-
-.big{
-font-size:42px;
-font-weight:bold;
+h1{
+margin:0 0 10px;
 }
 
 button{
-padding:14px;
-border-radius:12px;
-border:none;
-font-size:16px;
-cursor:pointer;
-}
-
-.done{
-background:#2EE59D;
-color:black;
 width:100%;
-font-weight:bold;
+padding:16px;
+font-size:18px;
+border:none;
+border-radius:12px;
+cursor:pointer;
+background:#22C55E;
+color:white;
+font-weight:600;
 }
 
-.player{
+button:disabled{
+opacity:.5;
+}
+
+.row{
 display:flex;
 justify-content:space-between;
-font-size:18px;
 margin:6px 0;
 }
 
-.good{color:#2EE59D}
-.bad{color:#FF5A7A}
+.streak{
+color:#F59E0B;
+font-weight:600;
+}
+
+.beer{
+color:#D97706;
+font-weight:600;
+}
+
+.calendar{
+display:grid;
+grid-template-columns:repeat(7,1fr);
+gap:4px;
+margin-top:10px;
+}
+
+.day{
+aspect-ratio:1;
+border-radius:4px;
+background:#E5E7EB;
+}
+
+.done{background:#22C55E;}
+.miss{background:#EF4444;}
+.today{outline:2px solid #F59E0B;}
+
+.small{
+color:#6B7280;
+font-size:14px;
+}
 
 input{
 width:100%;
 padding:10px;
-border-radius:10px;
-border:none;
 margin-top:8px;
+border-radius:8px;
+border:1px solid #E5E7EB;
 }
+
 </style>
 </head>
 
 <body>
+
 <div class="wrap">
 
-<h1>🇧🇪 Flemish Beer Pact</h1>
+<h1>Flemish Tracker</h1>
 
 <div class="card">
-Room:
-<input id="roomInput" placeholder="samuel-joel">
+Room
+<input id="roomInput">
 <button onclick="connect()">Connect</button>
-<div id="status"></div>
+<div id="status" class="small"></div>
 </div>
 
 <div class="card">
 <div id="today"></div>
-<button class="done" onclick="markDone()">✅ I DID FLEMISH TODAY</button>
+<button id="doneBtn" onclick="markDone()">✅ I DID FLEMISH TODAY</button>
 </div>
 
 <div class="card">
-<div class="player">
-<span>Samuel</span>
-<span id="samuelStats"></span>
+<div class="row">
+<div>Samuel</div>
+<div id="samuelStats"></div>
+</div>
+<div id="samuelCal" class="calendar"></div>
 </div>
 
-<div class="player">
-<span>Joel</span>
-<span id="joelStats"></span>
+<div class="card">
+<div class="row">
+<div>Joel</div>
+<div id="joelStats"></div>
 </div>
+<div id="joelCal" class="calendar"></div>
 </div>
 
 </div>
@@ -121,41 +158,41 @@ function todayISO(){
 return new Date().toISOString().slice(0,10);
 }
 
-async function initAuth(){
+async function authReady(){
 if(!auth.currentUser)
 await auth.signInAnonymously();
 }
 
-function chooseIdentity(){
-if(localStorage.getItem("player")){
-me=localStorage.getItem("player");
+function identity(){
+
+if(localStorage.player){
+me=localStorage.player;
 return;
 }
 
-me=prompt("Are you samuel or joel?").toLowerCase();
-localStorage.setItem("player",me);
+me=prompt("samuel or joel").toLowerCase();
+localStorage.player=me;
 }
 
 async function connect(){
 
-await initAuth();
-chooseIdentity();
+await authReady();
+identity();
 
 room=document.getElementById("roomInput").value.toLowerCase();
-
-localStorage.setItem("room",room);
+localStorage.room=room;
 
 db.collection("rooms").doc(room)
 .onSnapshot(snap=>{
 const data=snap.data()||{};
-processAutoMiss(data);
+autoMiss(data);
 render(data);
 });
 
 document.getElementById("status").innerText="Connected";
 }
 
-async function processAutoMiss(data){
+async function autoMiss(data){
 
 const entries=data.entries||{};
 const yesterday=new Date(Date.now()-86400000)
@@ -199,7 +236,39 @@ streak++;
 else break;
 }
 
-return {beers,streak};
+return{beers,streak};
+}
+
+function buildCalendar(el,entries,name){
+
+el.innerHTML="";
+
+const now=new Date();
+const year=now.getFullYear();
+const month=now.getMonth();
+
+for(let i=1;i<=31;i++){
+
+const d=new Date(year,month,i);
+if(d.getMonth()!=month) continue;
+
+const iso=d.toISOString().slice(0,10);
+
+const div=document.createElement("div");
+div.className="day";
+
+if(entries[iso]){
+if(entries[iso][name]==="done")
+div.classList.add("done");
+else
+div.classList.add("miss");
+}
+
+if(iso===todayISO())
+div.classList.add("today");
+
+el.appendChild(div);
+}
 }
 
 function render(data){
@@ -207,26 +276,37 @@ function render(data){
 const entries=data.entries||{};
 
 document.getElementById("today")
-.innerHTML=`Today: ${todayISO()}`;
+innerText="Today: "+todayISO();
 
 const s=calc(entries,"samuel");
 const j=calc(entries,"joel");
 
 document.getElementById("samuelStats")
-.innerHTML=`🔥${s.streak} | 🍺${s.beers}`;
+innerHTML=`🔥 ${s.streak} | 🍺 ${s.beers}`;
 
 document.getElementById("joelStats")
-.innerHTML=`🔥${j.streak} | 🍺${j.beers}`;
+innerHTML=`🔥 ${j.streak} | 🍺 ${j.beers}`;
+
+buildCalendar(
+document.getElementById("samuelCal"),
+entries,"samuel"
+);
+
+buildCalendar(
+document.getElementById("joelCal"),
+entries,"joel"
+);
 }
 
 window.onload=()=>{
-const saved=localStorage.getItem("room");
-if(saved){
-document.getElementById("roomInput").value=saved;
+if(localStorage.room){
+document.getElementById("roomInput").value=
+localStorage.room;
 connect();
 }
-}
+};
 
 </script>
+
 </body>
 </html>
