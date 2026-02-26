@@ -18,6 +18,7 @@
       padding: 10px 12px; border-radius: 12px; font-size: 14px; cursor: pointer;
     }
     button:hover { filter: brightness(1.1); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
     button.primary { background: #22305e; border-color: #3b5cff; }
     button.danger { background: #3a1c22; border-color: #ff5a7a; }
     button.good { background: #1d2f24; border-color: #2ee59d; }
@@ -29,9 +30,6 @@
     table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
     th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #2a3147; vertical-align: top; }
     th { opacity: 0.8; font-weight: 650; }
-    .tag { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 12px; border: 1px solid #2a3147; background: #1b2132; }
-    .tag.ok { border-color: #2ee59d; background: #14221b; }
-    .tag.miss { border-color: #ff5a7a; background: #2a1419; }
     input[type="text"]{
       width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 12px;
       border: 1px solid #2a3147; background: #0f1220; color: #eaf0ff; font-size: 14px;
@@ -41,6 +39,9 @@
     .split > div { flex: 1 1 280px; }
     .roomBox { display:flex; gap: 10px; flex-wrap: wrap; align-items: center; }
     .roomBox input { flex: 1 1 260px; }
+    .toast { margin-top: 8px; font-size: 13px; opacity: 0.9; }
+    .toast.bad { color: #ff9db0; }
+    .toast.good { color: #9ff0c7; }
   </style>
 </head>
 <body>
@@ -55,9 +56,11 @@
         <div class="small">Example: <b>samuel-joel-2026</b>. You both must use the same one.</div>
         <div class="roomBox">
           <input id="roomInput" type="text" placeholder="Enter a Room Code" />
-          <button class="primary" onclick="connectRoom()">Connect</button>
+          <button id="connectBtn" class="primary" onclick="connectRoom()">Connect</button>
+          <button id="clearRoomBtn" onclick="clearSavedRoom()">Clear saved room</button>
         </div>
         <div class="muted" id="roomStatus">Not connected yet.</div>
+        <div class="toast" id="toast"></div>
       </div>
       <div>
         <span class="pill" id="todayPill"></span>
@@ -71,8 +74,8 @@
       <div class="name">Samuel</div>
       <div class="count"><span id="samuelOwed">0</span> 🍺 owed</div>
       <div class="row">
-        <button class="good" onclick="logFor('samuel','done')">✅ Done today</button>
-        <button class="danger" onclick="logFor('samuel','miss')">❌ Missed today</button>
+        <button id="samuelDoneBtn" class="good" onclick="logFor('samuel','done')" disabled>✅ Done today</button>
+        <button id="samuelMissBtn" class="danger" onclick="logFor('samuel','miss')" disabled>❌ Missed today</button>
       </div>
       <div class="muted" id="samuelStatus">Connect a room to start.</div>
     </div>
@@ -81,8 +84,8 @@
       <div class="name">Joel</div>
       <div class="count"><span id="joelOwed">0</span> 🍺 owed</div>
       <div class="row">
-        <button class="good" onclick="logFor('joel','done')">✅ Done today</button>
-        <button class="danger" onclick="logFor('joel','miss')">❌ Missed today</button>
+        <button id="joelDoneBtn" class="good" onclick="logFor('joel','done')" disabled>✅ Done today</button>
+        <button id="joelMissBtn" class="danger" onclick="logFor('joel','miss')" disabled>❌ Missed today</button>
       </div>
       <div class="muted" id="joelStatus">Connect a room to start.</div>
     </div>
@@ -92,8 +95,8 @@
     <div style="font-weight:650; margin-bottom:6px;">Optional note for today</div>
     <input id="noteInput" type="text" placeholder="Add a note (optional)" />
     <div class="row" style="margin-top:10px;">
-      <button class="primary" onclick="saveNote()">Save note</button>
-      <button onclick="undoToday()">Undo today</button>
+      <button id="saveNoteBtn" class="primary" onclick="saveNote()" disabled>Save note</button>
+      <button id="undoBtn" onclick="undoToday()" disabled>Undo today</button>
     </div>
     <div class="muted" id="noteStatus"></div>
   </div>
@@ -121,18 +124,21 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyCCnKfM04RXZxP57j7MjhDjK-4wM8oAjFQ",
-  authDomain: "flemish-beer-tracker.firebaseapp.com",
-  projectId: "flemish-beer-tracker",
-  storageBucket: "flemish-beer-tracker.firebasestorage.app",
-  messagingSenderId: "578386909130",
-  appId: "1:578386909130:web:2baa14c9ad636a133fe133",
-  measurementId: "G-P742DCF7K9"
-};
+  // --- Config ---
+  const ROOM_STORAGE_KEY = "beerTrackerRoom";
 
-  // Basic UI helpers
+  // Your Firebase config
+  const firebaseConfig = {
+    apiKey: "AIzaSyCCnKfM04RXZxP57j7MjhDjK-4wM8oAjFQ",
+    authDomain: "flemish-beer-tracker.firebaseapp.com",
+    projectId: "flemish-beer-tracker",
+    storageBucket: "flemish-beer-tracker.firebasestorage.app",
+    messagingSenderId: "578386909130",
+    appId: "1:578386909130:web:2baa14c9ad636a133fe133",
+    measurementId: "G-P742DCF7K9"
+  };
+
+  // --- Helpers ---
   function todayISO() {
     const d = new Date();
     const yyyy = d.getFullYear();
@@ -147,7 +153,26 @@ const firebaseConfig = {
     return "No entry yet for today.";
   }
 
-  // Firebase init
+  function setToast(message, kind = "") {
+    const el = document.getElementById("toast");
+    el.className = "toast" + (kind ? " " + kind : "");
+    el.textContent = message || "";
+  }
+
+  function setConnectedUI(isConnected) {
+    const ids = [
+      "samuelDoneBtn","samuelMissBtn","joelDoneBtn","joelMissBtn",
+      "saveNoteBtn","undoBtn"
+    ];
+    ids.forEach(id => { document.getElementById(id).disabled = !isConnected; });
+
+    if (!isConnected) {
+      document.getElementById("samuelStatus").textContent = "Connect a room to start.";
+      document.getElementById("joelStatus").textContent = "Connect a room to start.";
+    }
+  }
+
+  // --- Firebase state ---
   let app, auth, db;
   let roomId = null;
   let unsub = null;
@@ -160,8 +185,7 @@ const firebaseConfig = {
   }
 
   async function signInAnon() {
-    const user = auth.currentUser;
-    if (user) return;
+    if (auth.currentUser) return;
     await auth.signInAnonymously();
   }
 
@@ -214,17 +238,26 @@ const firebaseConfig = {
   }
 
   async function connectRoom() {
+    const connectBtn = document.getElementById("connectBtn");
     try {
+      setToast("");
+      connectBtn.disabled = true;
+      connectBtn.textContent = "Connecting…";
+
       initFirebase();
       await signInAnon();
 
       const input = document.getElementById("roomInput").value.trim();
       if (!input) {
         document.getElementById("roomStatus").textContent = "Please enter a Room Code.";
+        setConnectedUI(false);
         return;
       }
 
       roomId = input.toLowerCase();
+
+      // Save room on this phone so user doesn't need to retype
+      localStorage.setItem(ROOM_STORAGE_KEY, roomId);
 
       // Stop previous listener
       if (unsub) unsub();
@@ -240,11 +273,25 @@ const firebaseConfig = {
         render(data);
       });
 
-      document.getElementById("roomStatus").textContent = `Connected. Room Code: "${roomId}". Share this code with Joel.`;
+      document.getElementById("roomStatus").textContent = `Connected. Room Code: "${roomId}".`;
+      setToast("Connected and synced.", "good");
+      setConnectedUI(true);
 
     } catch (err) {
       document.getElementById("roomStatus").textContent = `Could not connect. ${err.message}`;
+      setToast("Not connected yet. Check Firebase Authentication (Anonymous) and Firestore rules.", "bad");
+      setConnectedUI(false);
+    } finally {
+      connectBtn.disabled = false;
+      connectBtn.textContent = "Connect";
     }
+  }
+
+  function clearSavedRoom() {
+    localStorage.removeItem(ROOM_STORAGE_KEY);
+    document.getElementById("roomInput").value = "";
+    document.getElementById("roomStatus").textContent = "Saved room cleared. Enter a Room Code and connect.";
+    setToast("Saved room cleared on this device.", "good");
   }
 
   async function upsertToday(patch) {
@@ -259,50 +306,86 @@ const firebaseConfig = {
     }, { merge: true });
   }
 
+  async function ensureConnectedOrExplain() {
+    if (roomId) return true;
+    setToast("You are not connected. Enter the Room Code and press Connect.", "bad");
+    return false;
+  }
+
   async function logFor(person, status) {
-    if (!roomId) return;
+    if (!await ensureConnectedOrExplain()) return;
 
-    const docRef = db.collection("rooms").doc(roomId);
-    const snap = await docRef.get();
-    const data = snap.exists ? snap.data() : { entries: {} };
-    const date = todayISO();
-    const existing = (data.entries && data.entries[date]) ? data.entries[date] : { samuel: null, joel: null, note: "" };
+    try {
+      setToast("Saving…", "");
+      const docRef = db.collection("rooms").doc(roomId);
+      const snap = await docRef.get();
+      const data = snap.exists ? snap.data() : { entries: {} };
+      const date = todayISO();
+      const existing = (data.entries && data.entries[date]) ? data.entries[date] : { samuel: null, joel: null, note: "" };
 
-    existing[person] = status;
-    await upsertToday(existing);
+      existing[person] = status;
+      await upsertToday(existing);
+
+      setToast("Saved.", "good");
+    } catch (err) {
+      setToast(`Could not save. ${err.message}`, "bad");
+    }
   }
 
   async function saveNote() {
-    if (!roomId) return;
+    if (!await ensureConnectedOrExplain()) return;
 
-    const docRef = db.collection("rooms").doc(roomId);
-    const snap = await docRef.get();
-    const data = snap.exists ? snap.data() : { entries: {} };
-    const date = todayISO();
-    const existing = (data.entries && data.entries[date]) ? data.entries[date] : { samuel: null, joel: null, note: "" };
+    try {
+      setToast("Saving note…", "");
+      const docRef = db.collection("rooms").doc(roomId);
+      const snap = await docRef.get();
+      const data = snap.exists ? snap.data() : { entries: {} };
+      const date = todayISO();
+      const existing = (data.entries && data.entries[date]) ? data.entries[date] : { samuel: null, joel: null, note: "" };
 
-    existing.note = document.getElementById("noteInput").value.trim();
-    await upsertToday(existing);
+      existing.note = document.getElementById("noteInput").value.trim();
+      await upsertToday(existing);
+
+      setToast("Note saved.", "good");
+    } catch (err) {
+      setToast(`Could not save note. ${err.message}`, "bad");
+    }
   }
 
   async function undoToday() {
-    if (!roomId) return;
+    if (!await ensureConnectedOrExplain()) return;
 
-    const docRef = db.collection("rooms").doc(roomId);
-    const snap = await docRef.get();
-    const data = snap.exists ? snap.data() : { entries: {} };
-    const date = todayISO();
-    const existing = (data.entries && data.entries[date]) ? data.entries[date] : { samuel: null, joel: null, note: "" };
+    try {
+      setToast("Undoing…", "");
+      const docRef = db.collection("rooms").doc(roomId);
+      const snap = await docRef.get();
+      const data = snap.exists ? snap.data() : { entries: {} };
+      const date = todayISO();
+      const existing = (data.entries && data.entries[date]) ? data.entries[date] : { samuel: null, joel: null, note: "" };
 
-    existing.samuel = null;
-    existing.joel = null;
-    existing.note = "";
-    await upsertToday(existing);
+      existing.samuel = null;
+      existing.joel = null;
+      existing.note = "";
+      await upsertToday(existing);
+
+      setToast("Undone for today.", "good");
+    } catch (err) {
+      setToast(`Could not undo. ${err.message}`, "bad");
+    }
   }
 
-  // Initial render before connection
+  // --- Initial render ---
   render({ entries: {} });
   document.getElementById("todayPill").textContent = `Today: ${todayISO()}`;
+  setConnectedUI(false);
+
+  // Auto-connect if room previously saved on this device
+  const savedRoom = localStorage.getItem(ROOM_STORAGE_KEY);
+  if (savedRoom) {
+    document.getElementById("roomInput").value = savedRoom;
+    // small delay to allow firebase scripts to be ready in slower browsers
+    setTimeout(() => { connectRoom(); }, 300);
+  }
 </script>
 </body>
 </html>
